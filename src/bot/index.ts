@@ -1,4 +1,4 @@
-import { Bot } from 'grammy';
+import { Bot, BotError } from 'grammy';
 import pino from 'pino';
 import { envConfig, getJsonConfig } from '../config';
 
@@ -18,8 +18,8 @@ bot.use(async (ctx, next) => {
   await next();
 });
 
-bot.catch((err) => {
-  logger.error({ err: err.error }, 'Bot error');
+bot.catch((err: BotError) => {
+  logger.error({ err: err.error, chatId: err.ctx.chat?.id, update: err.ctx.update }, 'Bot handler error');
 });
 
 export const sendMessage = async (chatId: number, text: string): Promise<void> => {
@@ -27,9 +27,12 @@ export const sendMessage = async (chatId: number, text: string): Promise<void> =
 };
 
 export const startPolling = async (signal: AbortSignal): Promise<void> => {
-  signal.addEventListener('abort', () => {
-    bot.stop().catch((err: unknown) => logger.error({ err }, 'Error stopping bot'));
+  await bot.start({
+    onStart: () => {
+      logger.info('Bot polling started');
+      signal.addEventListener('abort', () => {
+        bot.stop().catch((err: unknown) => logger.error({ err }, 'Error stopping bot'));
+      });
+    },
   });
-  logger.info('Bot polling started');
-  await bot.start();
 };

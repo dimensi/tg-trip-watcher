@@ -50,6 +50,11 @@ export const setupOnboarding = (onAuthorized: OnAuthorized): void => {
       return;
     }
 
+    if (authTextResolver !== null) {
+      await sendMessage(chatId, '⚠️ Авторизация уже выполняется. Введите код из Telegram или дождитесь таймаута (10 мин).');
+      return;
+    }
+
     await sendMessage(chatId, 'Начинаю авторизацию в Telegram...');
     await startAuthFlow(chatId, onAuthorized);
   });

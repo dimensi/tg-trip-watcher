@@ -1,15 +1,14 @@
 import Database from 'better-sqlite3';
 import pino from 'pino';
-import { config } from './config';
 import { ParsedTour, RawMessageContext, StoredTourRecord } from './types/tour';
 
-const logger = pino({ level: config.app.logLevel }).child({ module: 'db' });
+const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'db' });
 
 export class TourDatabase {
   private readonly db: Database.Database;
 
-  public constructor() {
-    this.db = new Database(config.database.path);
+  public constructor(dbPath: string) {
+    this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     this.migrate();
   }

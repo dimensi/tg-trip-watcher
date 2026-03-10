@@ -8,13 +8,23 @@ import { sendMessage, registerCommand, setTextHandler } from './index';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'onboarding' });
 
+const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
 type OnAuthorized = (client: TelegramClient) => void;
 
 export const setupOnboarding = (onAuthorized: OnAuthorized): void => {
   registerCommand('start', async (chatId: number) => {
-    updateJsonConfig((draft) => {
-      draft.chatId = chatId;
-    });
+    const existing = getJsonConfig().chatId;
+
+    // Only allow chatId registration if not yet set
+    if (existing === null) {
+      updateJsonConfig((draft) => {
+        draft.chatId = chatId;
+      });
+    } else if (existing !== chatId) {
+      logger.warn({ chatId }, 'Unauthorized /start attempt ignored — chatId already set');
+      return;
+    }
 
     const cfg = getJsonConfig();
     const sessionPath = cfg.telegram.sessionPath;
@@ -34,7 +44,12 @@ export const setupOnboarding = (onAuthorized: OnAuthorized): void => {
       }
     }
 
-    await sendMessage(chatId, 'Отправляю код авторизации на номер телефона...');
+    if (!process.env.TELEGRAM_PHONE_NUMBER) {
+      await sendMessage(chatId, '❌ Переменная TELEGRAM_PHONE_NUMBER не задана. Добавьте её в .env и перезапустите бот.');
+      return;
+    }
+
+    await sendMessage(chatId, 'Начинаю авторизацию в Telegram...');
     await startAuthFlow(chatId, onAuthorized);
   });
 };
@@ -55,12 +70,7 @@ const connectWithSession = async (sessionStr: string): Promise<TelegramClient> =
 
 const startAuthFlow = async (chatId: number, onAuthorized: OnAuthorized): Promise<void> => {
   const cfg = getJsonConfig();
-  const phoneNumber = process.env.TELEGRAM_PHONE_NUMBER;
-
-  if (!phoneNumber) {
-    await sendMessage(chatId, 'Установите TELEGRAM_PHONE_NUMBER в .env и перезапустите.');
-    return;
-  }
+  const phoneNumber = process.env.TELEGRAM_PHONE_NUMBER!;
 
   const client = new TelegramClient(
     new StringSession(''),
@@ -82,36 +92,43 @@ const startAuthFlow = async (chatId: number, onAuthorized: OnAuthorized): Promis
     }
   });
 
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Auth flow timed out after 10 minutes')), AUTH_TIMEOUT_MS)
+  );
+
   try {
-    await client.start({
-      phoneNumber: async () => phoneNumber,
-      phoneCode: async () => {
-        await sendMessage(chatId, 'Введите код авторизации из Telegram:');
-        return new Promise<string>((resolve) => {
-          resolveCode = resolve;
-        });
-      },
-      password: async () => {
-        await sendMessage(chatId, 'Введите пароль 2FA:');
-        return new Promise<string>((resolve) => {
-          resolvePassword = resolve;
-        });
-      },
-      onError: (err) => logger.error({ err }, 'Auth error'),
-    });
+    await Promise.race([
+      client.start({
+        phoneNumber: async () => phoneNumber,
+        phoneCode: async () => {
+          await sendMessage(chatId, 'Введите код авторизации из Telegram:');
+          return new Promise<string>((resolve) => {
+            resolveCode = resolve;
+          });
+        },
+        password: async () => {
+          await sendMessage(chatId, 'Введите пароль 2FA:');
+          return new Promise<string>((resolve) => {
+            resolvePassword = resolve;
+          });
+        },
+        onError: (err) => logger.error({ err }, 'Auth error'),
+      }),
+      timeout,
+    ]);
 
     const sessionStr = String(client.session.save());
     const sessionPath = cfg.telegram.sessionPath;
     fs.mkdirSync(path.dirname(sessionPath), { recursive: true });
     fs.writeFileSync(sessionPath, sessionStr, 'utf8');
 
-    setTextHandler(null);
     onAuthorized(client);
     await sendMessage(chatId, '✅ Авторизация успешна! Мониторинг запущен.');
   } catch (error) {
-    setTextHandler(null);
     logger.error({ err: error }, 'Auth flow failed');
     await sendMessage(chatId, `❌ Ошибка авторизации: ${error instanceof Error ? error.message : 'unknown'}`);
+  } finally {
+    setTextHandler(null);
   }
 };
 

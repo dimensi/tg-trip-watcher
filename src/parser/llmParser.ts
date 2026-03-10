@@ -58,8 +58,12 @@ export const llmParseTour = async (text: string): Promise<ParsedTour> => {
     maxRetries: cfg.maxRetries,
   });
 
-  const usage = response.usage;
+  const usage = response.usage as (typeof response.usage & { cost?: number }) | null;
   logger.info({ usage }, 'OpenRouter usage');
+
+  if (usage?.cost !== undefined && usage.cost > cfg.maxCostUsd) {
+    throw new Error(`OpenRouter request cost ${usage.cost} exceeded limit ${cfg.maxCostUsd}`);
+  }
 
   const content = response.choices[0]?.message?.content;
   if (!content) {

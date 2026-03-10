@@ -26,10 +26,6 @@ const configSchema = z.object({
     dateFrom: z.string().optional(),
     dateTo: z.string().optional(),
   }).default({ departureCities: [] }),
-  app: z.object({
-    logLevel: z.string().default('info'),
-    timezone: z.string().default('UTC'),
-  }).default({ logLevel: 'info', timezone: 'UTC' }),
 });
 
 export type JsonConfig = z.infer<typeof configSchema>;

@@ -23,6 +23,7 @@ export const sendMessage = async (chatId: number, text: string): Promise<void> =
   if (!response.ok) {
     const body = await response.text();
     logger.error({ body, chatId }, 'sendMessage failed');
+    throw new Error(`sendMessage failed: ${response.status} ${body}`);
   }
 };
 
@@ -59,7 +60,8 @@ const processUpdate = async (update: TgUpdate): Promise<void> => {
 
   if (text.startsWith('/')) {
     const spaceIdx = text.indexOf(' ');
-    const cmd = spaceIdx === -1 ? text.slice(1).toLowerCase() : text.slice(1, spaceIdx).toLowerCase();
+    const rawCmd = spaceIdx === -1 ? text.slice(1) : text.slice(1, spaceIdx);
+    const cmd = rawCmd.split('@')[0].toLowerCase();
     const args = spaceIdx === -1 ? '' : text.slice(spaceIdx + 1).trim();
 
     const handler = commands.get(cmd);

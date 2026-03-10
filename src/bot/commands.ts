@@ -82,6 +82,10 @@ export const setupCommands = (getStatus: () => { authorized: boolean; watching: 
       await sendMessage(chatId, 'Формат дат: YYYY-MM-DD. Пример: /dates 2026-03-01 2026-09-01');
       return;
     }
+    if (from > to) {
+      await sendMessage(chatId, 'Дата начала должна быть раньше даты конца.');
+      return;
+    }
     updateJsonConfig((d) => { d.filters.dateFrom = from; d.filters.dateTo = to; });
     await sendMessage(chatId, `Даты: ${from} — ${to}`);
   });
@@ -137,7 +141,7 @@ export const setupCommands = (getStatus: () => { authorized: boolean; watching: 
       return;
     }
     updateJsonConfig((d) => { d.telegram.channels.push(args); });
-    await sendMessage(chatId, `Добавлен: ${args}`);
+    await sendMessage(chatId, `Добавлен: ${args}\n⚠️ Перезапустите бот для применения изменений каналов.`);
   });
 
   registerCommand('rmchannel', async (chatId, args) => {
@@ -153,6 +157,6 @@ export const setupCommands = (getStatus: () => { authorized: boolean; watching: 
     updateJsonConfig((d) => {
       d.telegram.channels = d.telegram.channels.filter((c) => c !== args);
     });
-    await sendMessage(chatId, `Удалён: ${args}`);
+    await sendMessage(chatId, `Удалён: ${args}\n⚠️ Перезапустите бот для применения изменений каналов.`);
   });
 };

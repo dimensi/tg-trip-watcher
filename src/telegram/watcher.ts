@@ -1,10 +1,10 @@
 import pino from 'pino';
 import { NewMessage } from 'telegram/events';
 import { Api, TelegramClient } from 'telegram';
-import { config } from '../config';
+import { getJsonConfig } from '../config';
 import { RawMessageContext } from '../types/tour';
 
-const logger = pino({ level: config.app.logLevel }).child({ module: 'telegram-watcher' });
+const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'telegram-watcher' });
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -15,9 +15,9 @@ export class TelegramWatcher {
   ) {}
 
   public async start(): Promise<void> {
-    const channels = config.telegram.channels;
+    const channels = getJsonConfig().telegram.channels;
     if (channels.length === 0) {
-      throw new Error('TELEGRAM_CHANNELS is empty');
+      throw new Error('No channels configured. Use /addchannel to add channels.');
     }
 
     logger.info({ channels }, 'Starting Telegram watcher');
@@ -29,14 +29,12 @@ export class TelegramWatcher {
         const channelTitle = channel && 'title' in channel ? channel.title : 'unknown';
         const text = message.message;
 
-        if (!text) {
-          return;
-        }
+        if (!text) return;
 
         await this.onMessage({
           sourceChannel: channelTitle,
           messageId: message.id,
-          text
+          text,
         });
       } catch (error) {
         const maybeError = error as { errorMessage?: string; seconds?: number };
@@ -45,7 +43,6 @@ export class TelegramWatcher {
           await sleep(maybeError.seconds * 1000);
           return;
         }
-
         logger.error({ err: error }, 'Failed to process Telegram message event');
       }
     }, new NewMessage({ chats: channels }));

@@ -1,8 +1,8 @@
 import pino from 'pino';
-import { config } from '../config';
+import { envConfig, getJsonConfig } from '../config';
 import { ParsedTour } from '../types/tour';
 
-const logger = pino({ level: config.app.logLevel }).child({ module: 'telegram-notifier' });
+const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'telegram-notifier' });
 
 const formatTour = (tour: ParsedTour): string => {
   return [
@@ -13,22 +13,26 @@ const formatTour = (tour: ParsedTour): string => {
     `Даты: ${tour.dateStart} - ${tour.dateEnd}`,
     `Ночей: ${tour.nights}`,
     `Цена: ${tour.price} ₽`,
-    `Ссылка: ${tour.bookingUrl}`
+    `Ссылка: ${tour.bookingUrl}`,
   ].join('\n');
 };
 
 export class TelegramNotifier {
   public async sendTour(tour: ParsedTour): Promise<void> {
-    const response = await fetch(`https://api.telegram.org/bot${config.bot.token}/sendMessage`, {
+    const chatId = getJsonConfig().chatId;
+    if (!chatId) {
+      logger.warn('Cannot send notification: chatId not set. Send /start to the bot.');
+      return;
+    }
+
+    const response = await fetch(`https://api.telegram.org/bot${envConfig.botToken}/sendMessage`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_id: config.bot.chatId,
+        chat_id: chatId,
         text: formatTour(tour),
-        disable_web_page_preview: false
-      })
+        disable_web_page_preview: false,
+      }),
     });
 
     if (!response.ok) {

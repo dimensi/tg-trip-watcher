@@ -1,5 +1,5 @@
 import { getJsonConfig, updateJsonConfig } from '../config';
-import { sendMessage, registerCommand } from './index';
+import { bot, sendMessage } from './index';
 
 const HELP_TEXT = `<b>Доступные команды:</b>
 
@@ -16,11 +16,12 @@ const HELP_TEXT = `<b>Доступные команды:</b>
 /rmchannel @deals — убрать канал`;
 
 export const setupCommands = (getStatus: () => { authorized: boolean; watching: boolean }): void => {
-  registerCommand('help', async (chatId) => {
-    await sendMessage(chatId, HELP_TEXT);
+  bot.command('help', async (ctx) => {
+    await sendMessage(ctx.chat.id, HELP_TEXT);
   });
 
-  registerCommand('status', async (chatId) => {
+  bot.command('status', async (ctx) => {
+    const chatId = ctx.chat.id;
     const cfg = getJsonConfig();
     const status = getStatus();
     const lines = [
@@ -33,7 +34,8 @@ export const setupCommands = (getStatus: () => { authorized: boolean; watching: 
     await sendMessage(chatId, lines.join('\n'));
   });
 
-  registerCommand('filters', async (chatId) => {
+  bot.command('filters', async (ctx) => {
+    const chatId = ctx.chat.id;
     const f = getJsonConfig().filters;
     const lines = [
       '<b>Фильтры:</b>',
@@ -45,7 +47,9 @@ export const setupCommands = (getStatus: () => { authorized: boolean; watching: 
     await sendMessage(chatId, lines.join('\n'));
   });
 
-  registerCommand('setprice', async (chatId, args) => {
+  bot.command('setprice', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const args = ctx.match ?? '';
     const price = Number(args);
     if (!args || Number.isNaN(price) || price <= 0) {
       await sendMessage(chatId, 'Использование: /setprice 50000');
@@ -55,8 +59,9 @@ export const setupCommands = (getStatus: () => { authorized: boolean; watching: 
     await sendMessage(chatId, `Макс. цена: ${price} ₽`);
   });
 
-  registerCommand('nights', async (chatId, args) => {
-    const parts = args.split(/\s+/);
+  bot.command('nights', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const parts = (ctx.match ?? '').split(/\s+/);
     if (parts.length !== 2) {
       await sendMessage(chatId, 'Использование: /nights 5 12');
       return;
@@ -70,8 +75,9 @@ export const setupCommands = (getStatus: () => { authorized: boolean; watching: 
     await sendMessage(chatId, `Ночей: ${min} — ${max}`);
   });
 
-  registerCommand('dates', async (chatId, args) => {
-    const parts = args.split(/\s+/);
+  bot.command('dates', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const parts = (ctx.match ?? '').split(/\s+/);
     if (parts.length !== 2) {
       await sendMessage(chatId, 'Использование: /dates 2026-03-01 2026-09-01');
       return;
@@ -90,7 +96,9 @@ export const setupCommands = (getStatus: () => { authorized: boolean; watching: 
     await sendMessage(chatId, `Даты: ${from} — ${to}`);
   });
 
-  registerCommand('addcity', async (chatId, args) => {
+  bot.command('addcity', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const args = ctx.match ?? '';
     if (!args) {
       await sendMessage(chatId, 'Использование: /addcity Казань');
       return;
@@ -104,7 +112,9 @@ export const setupCommands = (getStatus: () => { authorized: boolean; watching: 
     await sendMessage(chatId, `Добавлен: ${args}\nГорода: ${getJsonConfig().filters.departureCities.join(', ')}`);
   });
 
-  registerCommand('rmcity', async (chatId, args) => {
+  bot.command('rmcity', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const args = ctx.match ?? '';
     if (!args) {
       await sendMessage(chatId, 'Использование: /rmcity Казань');
       return;
@@ -121,7 +131,8 @@ export const setupCommands = (getStatus: () => { authorized: boolean; watching: 
     await sendMessage(chatId, `Удалён: ${args}\nГорода: ${cities.length > 0 ? cities.join(', ') : 'любые'}`);
   });
 
-  registerCommand('channels', async (chatId) => {
+  bot.command('channels', async (ctx) => {
+    const chatId = ctx.chat.id;
     const channels = getJsonConfig().telegram.channels;
     if (channels.length === 0) {
       await sendMessage(chatId, 'Каналы не указаны. Добавьте: /addchannel @channel');
@@ -130,7 +141,9 @@ export const setupCommands = (getStatus: () => { authorized: boolean; watching: 
     await sendMessage(chatId, `<b>Каналы:</b>\n${channels.join('\n')}`);
   });
 
-  registerCommand('addchannel', async (chatId, args) => {
+  bot.command('addchannel', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const args = ctx.match ?? '';
     if (!args) {
       await sendMessage(chatId, 'Использование: /addchannel @channel');
       return;
@@ -144,7 +157,9 @@ export const setupCommands = (getStatus: () => { authorized: boolean; watching: 
     await sendMessage(chatId, `Добавлен: ${args}\n⚠️ Перезапустите бот для применения изменений каналов.`);
   });
 
-  registerCommand('rmchannel', async (chatId, args) => {
+  bot.command('rmchannel', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const args = ctx.match ?? '';
     if (!args) {
       await sendMessage(chatId, 'Использование: /rmchannel @channel');
       return;

@@ -17,8 +17,10 @@
   "dependencies": {
     "better-sqlite3": "^11.7.0",
     "dotenv": "^16.4.7",
+    "openai": "^6.27.0",
     "pino": "^9.6.0",
-    "telegram": "^2.26.22"
+    "telegram": "^2.26.22",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

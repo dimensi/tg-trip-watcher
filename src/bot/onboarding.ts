@@ -4,7 +4,7 @@ import pino from 'pino';
 import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { envConfig, getJsonConfig, updateJsonConfig } from '../config';
-import { sendMessage, registerCommand, setTextHandler } from './index';
+import { bot, sendMessage } from './index';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'onboarding' });
 
@@ -12,15 +12,16 @@ const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 type OnAuthorized = (client: TelegramClient) => void;
 
+// Active resolver during auth flow — null when no auth in progress
+let authTextResolver: ((text: string) => void) | null = null;
+
 export const setupOnboarding = (onAuthorized: OnAuthorized): void => {
-  registerCommand('start', async (chatId: number) => {
+  bot.command('start', async (ctx) => {
+    const chatId = ctx.chat.id;
     const existing = getJsonConfig().chatId;
 
-    // Only allow chatId registration if not yet set
     if (existing === null) {
-      updateJsonConfig((draft) => {
-        draft.chatId = chatId;
-      });
+      updateJsonConfig((draft) => { draft.chatId = chatId; });
     } else if (existing !== chatId) {
       logger.warn({ chatId }, 'Unauthorized /start attempt ignored — chatId already set');
       return;
@@ -52,6 +53,14 @@ export const setupOnboarding = (onAuthorized: OnAuthorized): void => {
     await sendMessage(chatId, 'Начинаю авторизацию в Telegram...');
     await startAuthFlow(chatId, onAuthorized);
   });
+
+  // Routes free-text messages to auth flow resolver when active
+  bot.on('message:text', async (ctx) => {
+    if (authTextResolver) {
+      authTextResolver(ctx.message.text);
+      authTextResolver = null;
+    }
+  });
 };
 
 const connectWithSession = async (sessionStr: string): Promise<TelegramClient> => {
@@ -79,19 +88,6 @@ const startAuthFlow = async (chatId: number, onAuthorized: OnAuthorized): Promis
     { connectionRetries: 10, useWSS: true }
   );
 
-  let resolveCode: ((code: string) => void) | null = null;
-  let resolvePassword: ((password: string) => void) | null = null;
-
-  setTextHandler(async (_chatId: number, text: string) => {
-    if (resolveCode) {
-      resolveCode(text);
-      resolveCode = null;
-    } else if (resolvePassword) {
-      resolvePassword(text);
-      resolvePassword = null;
-    }
-  });
-
   const timeout = new Promise<never>((_, reject) =>
     setTimeout(() => reject(new Error('Auth flow timed out after 10 minutes')), AUTH_TIMEOUT_MS)
   );
@@ -103,13 +99,13 @@ const startAuthFlow = async (chatId: number, onAuthorized: OnAuthorized): Promis
         phoneCode: async () => {
           await sendMessage(chatId, 'Введите код авторизации из Telegram:');
           return new Promise<string>((resolve) => {
-            resolveCode = resolve;
+            authTextResolver = resolve;
           });
         },
         password: async () => {
           await sendMessage(chatId, 'Введите пароль 2FA:');
           return new Promise<string>((resolve) => {
-            resolvePassword = resolve;
+            authTextResolver = resolve;
           });
         },
         onError: (err) => logger.error({ err }, 'Auth error'),
@@ -128,7 +124,7 @@ const startAuthFlow = async (chatId: number, onAuthorized: OnAuthorized): Promis
     logger.error({ err: error }, 'Auth flow failed');
     await sendMessage(chatId, `❌ Ошибка авторизации: ${error instanceof Error ? error.message : 'unknown'}`);
   } finally {
-    setTextHandler(null);
+    authTextResolver = null;
   }
 };
 

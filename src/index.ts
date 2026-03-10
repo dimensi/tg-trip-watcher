@@ -1,5 +1,5 @@
 import pino from 'pino';
-import { envConfig, initJsonConfig, getJsonConfig, watchConfigFile } from './config';
+import { initJsonConfig, getJsonConfig, watchConfigFile } from './config';
 import { TourDatabase } from './db';
 import { TelegramNotifier } from './notifier/telegramNotifier';
 import { TourService } from './services/tourService';

@@ -29,14 +29,14 @@ const bootstrap = async (): Promise<void> => {
     logger.info('Watcher started');
   };
 
+  setupOnboarding((client) => {
+    startWatcher(client).catch((err) => logger.error({ err }, 'Failed to start watcher after onboarding'));
+  });
+
   setupCommands(() => ({
     authorized: telegramClient !== null,
     watching: watcher !== null,
   }));
-
-  setupOnboarding((client) => {
-    startWatcher(client).catch((err) => logger.error({ err }, 'Failed to start watcher after onboarding'));
-  });
 
   const abortController = new AbortController();
 

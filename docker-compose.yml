@@ -7,6 +7,8 @@ services:
     restart: always
     env_file:
       - .env
+    # Required env vars: TELEGRAM_API_ID, TELEGRAM_API_HASH, BOT_TOKEN, OPENROUTER_API_KEY
+    # Optional: TELEGRAM_PHONE_NUMBER, SQLITE_PATH, CONFIG_PATH, LOG_LEVEL
     volumes:
       - tg_watcher_data:/app/data
     healthcheck:

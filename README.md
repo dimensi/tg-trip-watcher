@@ -67,6 +67,27 @@ Persistent data is stored in Docker volume `tg_watcher_data`:
 - `/app/data/tours.db`
 - `/app/data/telegram.session`
 
+## GitHub Actions deploy (GHCR + VPS)
+- Workflow: `.github/workflows/deploy.yml`
+- Deploy compose: `docker-compose.deploy.yml`
+- On each push to `main`:
+  - image is built from `docker/Dockerfile` and pushed to `ghcr.io/<owner>/<repo>:latest`
+  - VPS pulls latest image and runs `docker compose up -d`
+
+Required GitHub secrets:
+- `VPS_HOST`
+- `VPS_USER`
+- `VPS_SSH_KEY`
+- `VPS_PORT` (optional; defaults to `22`)
+- `TELEGRAM_API_ID`
+- `TELEGRAM_API_HASH`
+- `BOT_TOKEN`
+- `OPENROUTER_API_KEY`
+- `TELEGRAM_PHONE_NUMBER` (optional)
+
+Optional GitHub variable:
+- `LOG_LEVEL` (default `info`)
+
 ## Telegram login flow
 - For first start, set `TELEGRAM_LOGIN_CODE` in `.env` (code from Telegram SMS/app).
 - After successful login, session is persisted and can be reused without code.

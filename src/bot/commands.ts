@@ -1,5 +1,25 @@
-import { getJsonConfig, updateJsonConfig } from '../config';
+import pino from 'pino';
+import { getJsonConfig, JsonConfig, updateJsonConfig } from '../config';
 import { bot, sendMessage } from './index';
+
+const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'bot-commands' });
+
+type RuntimeStatus = { authorized: boolean; watching: boolean };
+
+export const BOT_COMMANDS = [
+  { command: 'start', description: 'Запустить онбординг и подключение' },
+  { command: 'help', description: 'Список команд' },
+  { command: 'status', description: 'Текущее состояние и настройки' },
+  { command: 'filters', description: 'Показать фильтры' },
+  { command: 'setprice', description: 'Установить максимум цены' },
+  { command: 'nights', description: 'Установить диапазон ночей' },
+  { command: 'dates', description: 'Установить диапазон дат' },
+  { command: 'addcity', description: 'Добавить город вылета' },
+  { command: 'rmcity', description: 'Удалить город вылета' },
+  { command: 'channels', description: 'Показать каналы мониторинга' },
+  { command: 'addchannel', description: 'Добавить канал мониторинга' },
+  { command: 'rmchannel', description: 'Удалить канал мониторинга' },
+] as const;
 
 const HELP_TEXT = `<b>Доступные команды:</b>
 
@@ -15,7 +35,41 @@ const HELP_TEXT = `<b>Доступные команды:</b>
 /addchannel @deals — добавить канал
 /rmchannel @deals — убрать канал`;
 
-export const setupCommands = (getStatus: () => { authorized: boolean; watching: boolean }): void => {
+export const formatStatusText = (cfg: JsonConfig, status: RuntimeStatus): string => {
+  const channels = cfg.telegram.channels.length > 0 ? cfg.telegram.channels.join(', ') : 'не добавлены';
+  const cities = cfg.filters.departureCities.length > 0 ? cfg.filters.departureCities.join(', ') : 'любые';
+  const chatBinding = cfg.chatId !== null ? String(cfg.chatId) : 'не привязан';
+
+  return [
+    '<b>Статус бота</b>',
+    `Пользователь Telegram: ${status.authorized ? '✅ подключен' : '❌ не подключен'}`,
+    `Мониторинг: ${status.watching ? '✅ активен' : '❌ не активен'}`,
+    `Привязанный чат: ${chatBinding}`,
+    '',
+    '<b>Каналы</b>',
+    `${channels}`,
+    `Сессия: ${cfg.telegram.sessionPath}`,
+    '',
+    '<b>Фильтры</b>',
+    `Цена до: ${cfg.filters.maxPrice ?? 'не задана'}`,
+    `Города вылета: ${cities}`,
+    `Ночей: ${cfg.filters.minNights ?? '—'} — ${cfg.filters.maxNights ?? '—'}`,
+    `Даты: ${cfg.filters.dateFrom ?? '—'} — ${cfg.filters.dateTo ?? '—'}`,
+    '',
+    '<b>LLM</b>',
+    `Модель: ${cfg.openRouter.model}`,
+    `Таймаут: ${cfg.openRouter.timeoutMs} ms`,
+    `Повторы: ${cfg.openRouter.maxRetries}`,
+    `Лимит текста: ${cfg.openRouter.maxInputChars}`,
+    `Макс. стоимость: ${cfg.openRouter.maxCostUsd}`,
+  ].join('\n');
+};
+
+export const setupCommands = (getStatus: () => RuntimeStatus): void => {
+  void bot.api.setMyCommands(BOT_COMMANDS).catch((err) => {
+    logger.error({ err }, 'Failed to register bot commands via setMyCommands');
+  });
+
   bot.command('help', async (ctx) => {
     await sendMessage(ctx.chat.id, HELP_TEXT);
   });
@@ -24,14 +78,7 @@ export const setupCommands = (getStatus: () => { authorized: boolean; watching: 
     const chatId = ctx.chat.id;
     const cfg = getJsonConfig();
     const status = getStatus();
-    const lines = [
-      `<b>Статус:</b>`,
-      `Telegram: ${status.authorized ? '✅ подключен' : '❌ не подключен'}`,
-      `Мониторинг: ${status.watching ? '✅ активен' : '❌ не активен'}`,
-      `Каналы: ${cfg.telegram.channels.length > 0 ? cfg.telegram.channels.join(', ') : 'не указаны'}`,
-      `Модель: ${cfg.openRouter.model}`,
-    ];
-    await sendMessage(chatId, lines.join('\n'));
+    await sendMessage(chatId, formatStatusText(cfg, status));
   });
 
   bot.command('filters', async (ctx) => {

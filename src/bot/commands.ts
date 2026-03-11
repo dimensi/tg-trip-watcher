@@ -5,6 +5,7 @@ import { bot, sendMessage } from './index';
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'bot-commands' });
 
 type RuntimeStatus = { authorized: boolean; watching: boolean };
+type ReloadRuntime = () => Promise<void>;
 
 export const BOT_COMMANDS = [
   { command: 'start', description: 'Запустить онбординг и подключение' },
@@ -16,6 +17,9 @@ export const BOT_COMMANDS = [
   { command: 'dates', description: 'Установить диапазон дат' },
   { command: 'addcity', description: 'Добавить город вылета' },
   { command: 'rmcity', description: 'Удалить город вылета' },
+  { command: 'addarrcity', description: 'Добавить город прибытия' },
+  { command: 'rmarrcity', description: 'Удалить город прибытия' },
+  { command: 'reload', description: 'Перезагрузить runtime-конфигурацию' },
   { command: 'channels', description: 'Показать каналы мониторинга' },
   { command: 'addchannel', description: 'Добавить канал мониторинга' },
   { command: 'rmchannel', description: 'Удалить канал мониторинга' },
@@ -31,6 +35,9 @@ const HELP_TEXT = `<b>Доступные команды:</b>
 /dates 2026-03-01 2026-09-01 — диапазон дат
 /addcity Казань — добавить город вылета
 /rmcity Казань — убрать город вылета
+/addarrcity Стамбул — добавить город прилёта
+/rmarrcity Стамбул — убрать город прилёта
+/reload — перезагрузить runtime-конфигурацию
 /channels — список каналов
 /addchannel @deals — добавить канал
 /rmchannel @deals — убрать канал`;
@@ -66,7 +73,20 @@ export const formatStatusText = (cfg: JsonConfig, status: RuntimeStatus): string
   ].join('\n');
 };
 
-export const setupCommands = (getStatus: () => RuntimeStatus): void => {
+export const runReloadCommand = async (reloadRuntime: ReloadRuntime): Promise<string> => {
+  try {
+    await reloadRuntime();
+    return '✅ Конфигурация и подписки перезагружены.';
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'unknown';
+    return `❌ Ошибка reload: ${reason}`;
+  }
+};
+
+export const setupCommands = (
+  getStatus: () => RuntimeStatus,
+  reloadRuntime: ReloadRuntime
+): void => {
   void bot.api.setMyCommands(BOT_COMMANDS).catch((err) => {
     logger.error({ err }, 'Failed to register bot commands via setMyCommands');
   });
@@ -88,7 +108,8 @@ export const setupCommands = (getStatus: () => RuntimeStatus): void => {
     const lines = [
       '<b>Фильтры:</b>',
       `Макс. цена: ${f.maxPrice ?? 'не задана'}`,
-      `Города: ${f.departureCities.length > 0 ? f.departureCities.join(', ') : 'любые'}`,
+      `Города вылета: ${f.departureCities.length > 0 ? f.departureCities.join(', ') : 'любые'}`,
+      `Города прилёта: ${f.arrivalCities.length > 0 ? f.arrivalCities.join(', ') : 'любые'}`,
       `Ночей: ${f.minNights ?? '—'} — ${f.maxNights ?? '—'}`,
       `Даты: ${f.dateFrom ?? '—'} — ${f.dateTo ?? '—'}`,
     ];
@@ -179,6 +200,47 @@ export const setupCommands = (getStatus: () => RuntimeStatus): void => {
     await sendMessage(chatId, `Удалён: ${args}\nГорода: ${cities.length > 0 ? cities.join(', ') : 'любые'}`);
   });
 
+  bot.command('addarrcity', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const args = (ctx.match ?? '').trim();
+    if (!args) {
+      await sendMessage(chatId, 'Использование: /addarrcity Стамбул');
+      return;
+    }
+    const cfg = getJsonConfig();
+    if (cfg.filters.arrivalCities.includes(args)) {
+      await sendMessage(chatId, `${args} уже в списке прилёта`);
+      return;
+    }
+    updateJsonConfig((d) => { d.filters.arrivalCities.push(args); });
+    await sendMessage(chatId, `Добавлен прилёт: ${args}\nГорода прилёта: ${getJsonConfig().filters.arrivalCities.join(', ')}`);
+  });
+
+  bot.command('rmarrcity', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const args = (ctx.match ?? '').trim();
+    if (!args) {
+      await sendMessage(chatId, 'Использование: /rmarrcity Стамбул');
+      return;
+    }
+    const cfg = getJsonConfig();
+    if (!cfg.filters.arrivalCities.includes(args)) {
+      await sendMessage(chatId, `${args} не найден в списке прилёта`);
+      return;
+    }
+    updateJsonConfig((d) => {
+      d.filters.arrivalCities = d.filters.arrivalCities.filter((c) => c !== args);
+    });
+    const cities = getJsonConfig().filters.arrivalCities;
+    await sendMessage(chatId, `Удалён прилёт: ${args}\nГорода прилёта: ${cities.length > 0 ? cities.join(', ') : 'любые'}`);
+  });
+
+  bot.command('reload', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const result = await runReloadCommand(reloadRuntime);
+    await sendMessage(chatId, result);
+  });
+
   bot.command('channels', async (ctx) => {
     const chatId = ctx.chat.id;
     const channels = getJsonConfig().telegram.channels;
@@ -202,7 +264,7 @@ export const setupCommands = (getStatus: () => RuntimeStatus): void => {
       return;
     }
     updateJsonConfig((d) => { d.telegram.channels.push(args); });
-    await sendMessage(chatId, `Добавлен: ${args}\n⚠️ Перезапустите бот для применения изменений каналов.`);
+    await sendMessage(chatId, `Добавлен: ${args}`);
   });
 
   bot.command('rmchannel', async (ctx) => {
@@ -220,6 +282,6 @@ export const setupCommands = (getStatus: () => RuntimeStatus): void => {
     updateJsonConfig((d) => {
       d.telegram.channels = d.telegram.channels.filter((c) => c !== args);
     });
-    await sendMessage(chatId, `Удалён: ${args}\n⚠️ Перезапустите бот для применения изменений каналов.`);
+    await sendMessage(chatId, `Удалён: ${args}`);
   });
 };

@@ -102,6 +102,15 @@ Configured through `.env`:
 - `DATE_FROM`
 - `DATE_TO`
 
+Runtime filters in `data/config.json` support:
+- `departureCities` (exact city match against parsed departure city list)
+- `arrivalCities` (case-insensitive partial match against parsed destination)
+- `maxPrice`, `minNights`, `maxNights`, `dateFrom`, `dateTo`
+
+You can update filters via bot commands and by editing `data/config.json` manually.
+
+Channel updates are applied automatically at runtime; manual fallback is available via `/reload`.
+
 ## OpenRouter notes
 - Set `OPENROUTER_API_KEY` and model in `OPENROUTER_MODEL`.
 - Timeout/retries are configurable.

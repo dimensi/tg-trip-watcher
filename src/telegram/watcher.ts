@@ -1,7 +1,6 @@
 import pino from 'pino';
 import { NewMessage } from 'telegram/events';
 import { Api, TelegramClient } from 'telegram';
-import { getJsonConfig } from '../config';
 import { RawMessageContext } from '../types/tour';
 import { shouldConnectClient } from './watcherConnection';
 
@@ -10,20 +9,52 @@ const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class TelegramWatcher {
+  private activeEvent: NewMessage | null = null;
+  private activeHandler: ((event: { message: Api.Message }) => Promise<void>) | null = null;
+
   public constructor(
     private readonly client: TelegramClient,
     private readonly onMessage: (message: RawMessageContext) => Promise<void>
   ) {}
 
-  public async start(): Promise<void> {
-    const channels = getJsonConfig().telegram.channels;
+  public async start(channels: string[]): Promise<void> {
     if (channels.length === 0) {
       throw new Error('No channels configured. Use /addchannel to add channels.');
     }
 
     logger.info({ channels }, 'Starting Telegram watcher');
 
-    this.client.addEventHandler(async (event) => {
+    try {
+      if (shouldConnectClient(this.client.connected)) {
+        await this.client.connect();
+      } else {
+        logger.debug('Skipping connect: Telegram client already connected');
+      }
+    } catch (error) {
+      logger.error({ err: error }, 'Telegram connect failed');
+      await sleep(3000);
+      throw error;
+    }
+
+    this.bind(channels);
+  }
+
+  public async reload(channels: string[]): Promise<void> {
+    this.stop();
+    await this.start(channels);
+  }
+
+  public stop(): void {
+    if (this.activeHandler && this.activeEvent) {
+      this.client.removeEventHandler(this.activeHandler, this.activeEvent);
+    }
+    this.activeHandler = null;
+    this.activeEvent = null;
+  }
+
+  private bind(channels: string[]): void {
+    const eventBuilder = new NewMessage({ chats: channels });
+    const handler = async (event: { message: Api.Message }): Promise<void> => {
       try {
         const message = event.message as Api.Message;
         const channel = await message.getChat();
@@ -48,18 +79,10 @@ export class TelegramWatcher {
         }
         logger.error({ err: error }, 'Failed to process Telegram message event');
       }
-    }, new NewMessage({ chats: channels }));
+    };
 
-    try {
-      if (shouldConnectClient(this.client.connected)) {
-        await this.client.connect();
-      } else {
-        logger.debug('Skipping connect: Telegram client already connected');
-      }
-    } catch (error) {
-      logger.error({ err: error }, 'Telegram connect failed');
-      await sleep(3000);
-      throw error;
-    }
+    this.client.addEventHandler(handler, eventBuilder);
+    this.activeHandler = handler;
+    this.activeEvent = eventBuilder;
   }
 }

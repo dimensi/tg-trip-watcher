@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BOT_COMMANDS, formatStatusText } from './commands';
+import { BOT_COMMANDS, formatStatusText, runReloadCommand } from './commands';
 import { JsonConfig } from '../config';
 
 test('BOT_COMMANDS contains all expected command names', () => {
@@ -15,6 +15,9 @@ test('BOT_COMMANDS contains all expected command names', () => {
     'dates',
     'addcity',
     'rmcity',
+    'addarrcity',
+    'rmarrcity',
+    'reload',
     'channels',
     'addchannel',
     'rmchannel',
@@ -63,4 +66,16 @@ test('formatStatusText renders human-readable runtime and config status', () => 
   assert.match(text, /Даты: 2026-04-01 — 2026-05-01/);
   assert.match(text, /<b>LLM<\/b>/);
   assert.match(text, /Модель: google\/gemini-2\.5-flash-lite/);
+});
+
+test('runReloadCommand returns success text when reload completes', async () => {
+  const text = await runReloadCommand(async () => {});
+  assert.match(text, /перезагружены/);
+});
+
+test('runReloadCommand returns error text when reload fails', async () => {
+  const text = await runReloadCommand(async () => {
+    throw new Error('boom');
+  });
+  assert.match(text, /Ошибка reload: boom/);
 });

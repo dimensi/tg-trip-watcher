@@ -16,6 +16,7 @@ const baseTour: ParsedTour = {
 
 const baseFilters: TourFilters = {
   departureCities: [],
+  arrivalCities: [],
   dateFrom: '2026-04-01',
   dateTo: '2026-05-01',
 };
@@ -112,6 +113,7 @@ test('matchesFilters returns true when all active filters pass together', () => 
   const filters: TourFilters = {
     maxPrice: 70000,
     departureCities: ['Москва'],
+    arrivalCities: [],
     minNights: 5,
     maxNights: 9,
     dateFrom: '2026-04-01',
@@ -128,4 +130,43 @@ test('matchesFilters returns true when all active filters pass together', () => 
   };
 
   assert.equal(matchesFilters(tour, filters), true);
+});
+
+test('matchesFilters skips arrival city check when filter list is empty', () => {
+  const filters: TourFilters = {
+    ...baseFilters,
+    arrivalCities: [],
+  };
+  const inRangeTour: ParsedTour = {
+    ...baseTour,
+    destination: 'Стамбул (SAW)',
+    dateEnd: '2026-05-01',
+  };
+  assert.equal(matchesFilters(inRangeTour, filters), true);
+});
+
+test('matchesFilters applies arrival city filter with case-insensitive partial matching', () => {
+  const filters: TourFilters = {
+    ...baseFilters,
+    arrivalCities: ['стамбул'],
+  };
+  const inRangeTour: ParsedTour = {
+    ...baseTour,
+    destination: 'Стамбул (SAW)',
+    dateEnd: '2026-05-01',
+  };
+  assert.equal(matchesFilters(inRangeTour, filters), true);
+});
+
+test('matchesFilters rejects tours when none of arrival cities match destination', () => {
+  const filters: TourFilters = {
+    ...baseFilters,
+    arrivalCities: ['Анталья'],
+  };
+  const inRangeTour: ParsedTour = {
+    ...baseTour,
+    destination: 'Стамбул',
+    dateEnd: '2026-05-01',
+  };
+  assert.equal(matchesFilters(inRangeTour, filters), false);
 });

@@ -35,5 +35,14 @@ export const matchesFilters = (tour: ParsedTour, filters: TourFilters): boolean 
     }
   }
 
+  if (filters.arrivalCities.length > 0) {
+    const normalizedDestination = tour.destination.trim().toLowerCase();
+    const normalizedAllowed = filters.arrivalCities.map((city) => city.trim().toLowerCase()).filter(Boolean);
+    const hasAllowed = normalizedAllowed.some((city) => normalizedDestination.includes(city));
+    if (!hasAllowed) {
+      return false;
+    }
+  }
+
   return true;
 };

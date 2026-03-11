@@ -33,17 +33,20 @@ const bootstrap = async (): Promise<void> => {
       return;
     }
     watcherStartInProgress = true;
+    try {
+      const configError = watcherConfigErrorForChannels(getJsonConfig().telegram.channels);
+      if (configError) {
+        throw new Error(configError);
+      }
 
-    const configError = watcherConfigErrorForChannels(getJsonConfig().telegram.channels);
-    if (configError) {
-      watcherStartInProgress = false;
-      throw new Error(configError);
-    }
-
-    telegramClient = client;
-    watcher = new TelegramWatcher(client, async (message) => service.processMessage(message));
-    const channels = [...getJsonConfig().telegram.channels];
-    await watcher.start(channels).catch(async (err) => {
+      const nextWatcher = new TelegramWatcher(client, async (message) => service.processMessage(message));
+      const channels = [...getJsonConfig().telegram.channels];
+      await nextWatcher.start(channels);
+      telegramClient = client;
+      watcher = nextWatcher;
+      lastChannels = channels;
+      logger.info('Watcher started');
+    } catch (err) {
       watcher = null;
       logger.error({ err }, 'Watcher error');
       const chatId = getJsonConfig().chatId;
@@ -51,10 +54,10 @@ const bootstrap = async (): Promise<void> => {
         const reason = err instanceof Error ? err.message : 'unknown';
         await sendMessage(chatId, `❌ Ошибка мониторинга: ${reason}`);
       }
-    });
-    lastChannels = channels;
-    watcherStartInProgress = false;
-    logger.info('Watcher started');
+      throw err;
+    } finally {
+      watcherStartInProgress = false;
+    }
   };
 
   const reloadRuntime = async (): Promise<void> => {

@@ -94,20 +94,14 @@ Optional GitHub variable:
 - If 2FA is enabled, set `TELEGRAM_PASSWORD`.
 
 ## Filtering
-Configured through `.env`:
-- `MAX_PRICE`
-- `DEPARTURE_CITIES`
-- `MIN_NIGHTS`
-- `MAX_NIGHTS`
-- `DATE_FROM`
-- `DATE_TO`
-
-Runtime filters in `data/config.json` support:
+Configured through `data/config.json`:
 - `departureCities` (exact city match against parsed departure city list)
 - `arrivalCities` (case-insensitive partial match against parsed destination)
 - `maxPrice`, `minNights`, `maxNights`, `dateFrom`, `dateTo`
 
 You can update filters via bot commands and by editing `data/config.json` manually.
+
+Legacy env filter variables may still be present in older setups, but the runtime source of truth is `data/config.json`.
 
 Channel updates are applied automatically at runtime; manual fallback is available via `/reload`.
 

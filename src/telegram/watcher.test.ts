@@ -5,8 +5,12 @@ import { TelegramWatcher } from './watcher';
 class FakeClient {
   public connected = true;
   public handlers: Array<{ cb: CallableFunction; event: unknown }> = [];
+  public failOnAdd = false;
 
   public addEventHandler(cb: CallableFunction, event: unknown): void {
+    if (this.failOnAdd) {
+      throw new Error('addEventHandler failed');
+    }
     this.handlers.push({ cb, event });
   }
 
@@ -37,4 +41,17 @@ test('TelegramWatcher.stop removes active subscription', async () => {
 
   watcher.stop();
   assert.equal(client.handlers.length, 0);
+});
+
+test('TelegramWatcher.reload keeps previous subscription if rebinding fails', async () => {
+  const client = new FakeClient();
+  const watcher = new TelegramWatcher(client as never, async () => {});
+
+  await watcher.start(['@one']);
+  assert.equal(client.handlers.length, 1);
+
+  client.failOnAdd = true;
+  await assert.rejects(async () => watcher.reload(['@two']), /addEventHandler failed/);
+
+  assert.equal(client.handlers.length, 1);
 });

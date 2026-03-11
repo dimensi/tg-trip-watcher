@@ -40,8 +40,14 @@ export class TelegramWatcher {
   }
 
   public async reload(channels: string[]): Promise<void> {
-    this.stop();
+    const previousHandler = this.activeHandler;
+    const previousEvent = this.activeEvent;
+
     await this.start(channels);
+
+    if (previousHandler && previousEvent) {
+      this.client.removeEventHandler(previousHandler, previousEvent);
+    }
   }
 
   public stop(): void {

@@ -28,6 +28,7 @@ export class TelegramWatcher {
         const message = event.message as Api.Message;
         const channel = await message.getChat();
         const channelTitle = channel && 'title' in channel ? channel.title : 'unknown';
+        const channelUsername = channel && 'username' in channel ? channel.username : undefined;
         const text = message.message;
 
         if (!text) return;
@@ -36,6 +37,7 @@ export class TelegramWatcher {
           sourceChannel: channelTitle,
           messageId: message.id,
           text,
+          sourceChannelUsername: channelUsername,
         });
       } catch (error) {
         const maybeError = error as { errorMessage?: string; seconds?: number };

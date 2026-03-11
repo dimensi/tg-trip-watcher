@@ -34,7 +34,7 @@ export class TourService {
         return;
       }
 
-      await this.notifier.sendTour(parsed);
+      await this.notifier.sendTour(parsed, message);
       this.db.markNotificationSent(tourId);
     } catch (error) {
       logger.warn({ err: error, message }, 'Failed to process message as tour');

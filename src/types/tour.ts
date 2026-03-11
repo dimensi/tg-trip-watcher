@@ -13,6 +13,7 @@ export interface RawMessageContext {
   sourceChannel: string;
   messageId: number;
   text: string;
+  sourceChannelUsername?: string;
 }
 
 export interface StoredTourRecord {

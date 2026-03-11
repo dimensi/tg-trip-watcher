@@ -38,6 +38,7 @@ test('formatStatusText renders human-readable runtime and config status', () => 
     filters: {
       maxPrice: 70000,
       departureCities: ['Пермь', 'Москва'],
+      arrivalCities: ['Стамбул', 'Анталья'],
       minNights: 5,
       maxNights: 12,
       dateFrom: '2026-04-01',
@@ -57,6 +58,7 @@ test('formatStatusText renders human-readable runtime and config status', () => 
   assert.match(text, /<b>Фильтры<\/b>/);
   assert.match(text, /Цена до: 70000/);
   assert.match(text, /Города вылета: Пермь, Москва/);
+  assert.match(text, /Города прилёта: Стамбул, Анталья/);
   assert.match(text, /Ночей: 5 — 12/);
   assert.match(text, /Даты: 2026-04-01 — 2026-05-01/);
   assert.match(text, /<b>LLM<\/b>/);

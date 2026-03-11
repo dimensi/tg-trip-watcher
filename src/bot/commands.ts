@@ -53,6 +53,7 @@ export const formatStatusText = (cfg: JsonConfig, status: RuntimeStatus): string
     '<b>Фильтры</b>',
     `Цена до: ${cfg.filters.maxPrice ?? 'не задана'}`,
     `Города вылета: ${cities}`,
+    `Города прилёта: ${cfg.filters.arrivalCities.length > 0 ? cfg.filters.arrivalCities.join(', ') : 'любые'}`,
     `Ночей: ${cfg.filters.minNights ?? '—'} — ${cfg.filters.maxNights ?? '—'}`,
     `Даты: ${cfg.filters.dateFrom ?? '—'} — ${cfg.filters.dateTo ?? '—'}`,
     '',

@@ -29,6 +29,7 @@ export interface StoredTourRecord {
 export interface TourFilters {
   maxPrice?: number;
   departureCities: string[];
+  arrivalCities: string[];
   minNights?: number;
   maxNights?: number;
   dateFrom?: string;

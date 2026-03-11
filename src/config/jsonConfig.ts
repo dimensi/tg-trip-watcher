@@ -21,11 +21,12 @@ const configSchema = z.object({
   filters: z.object({
     maxPrice: z.number().optional(),
     departureCities: z.array(z.string()).default([]),
+    arrivalCities: z.array(z.string()).default([]),
     minNights: z.number().optional(),
     maxNights: z.number().optional(),
     dateFrom: z.string().optional(),
     dateTo: z.string().optional(),
-  }).default({ departureCities: [] }),
+  }).default({ departureCities: [], arrivalCities: [] }),
 });
 
 export type JsonConfig = z.infer<typeof configSchema>;

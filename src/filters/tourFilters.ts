@@ -23,6 +23,10 @@ export const matchesFilters = (tour: ParsedTour, filters: TourFilters): boolean 
     return false;
   }
 
+  if (!inRange(tour.dateEnd, filters.dateFrom, filters.dateTo)) {
+    return false;
+  }
+
   if (filters.departureCities.length > 0) {
     const normalizedAllowed = filters.departureCities.map((city) => city.toLowerCase());
     const hasAllowed = tour.departureCities.some((city) => normalizedAllowed.includes(city.toLowerCase()));

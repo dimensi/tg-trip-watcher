@@ -3,6 +3,7 @@ import { NewMessage } from 'telegram/events';
 import { Api, TelegramClient } from 'telegram';
 import { getJsonConfig } from '../config';
 import { RawMessageContext } from '../types/tour';
+import { shouldConnectClient } from './watcherConnection';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'telegram-watcher' });
 
@@ -47,14 +48,16 @@ export class TelegramWatcher {
       }
     }, new NewMessage({ chats: channels }));
 
-    while (true) {
-      try {
+    try {
+      if (shouldConnectClient(this.client.connected)) {
         await this.client.connect();
-        await this.client.disconnected;
-      } catch (error) {
-        logger.error({ err: error }, 'Telegram connection dropped, retrying');
-        await sleep(3000);
+      } else {
+        logger.debug('Skipping connect: Telegram client already connected');
       }
+    } catch (error) {
+      logger.error({ err: error }, 'Telegram connect failed');
+      await sleep(3000);
+      throw error;
     }
   }
 }

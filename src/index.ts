@@ -4,6 +4,8 @@ import { TourDatabase } from './db';
 import { TelegramNotifier } from './notifier/telegramNotifier';
 import { TourService } from './services/tourService';
 import { TelegramWatcher } from './telegram/watcher';
+import { watcherConfigErrorForChannels } from './telegram/watcherConfig';
+import { canStartWatcher } from './telegram/watcherStartGuard';
 import { startPolling, sendMessage } from './bot';
 import { setupOnboarding, tryAutoConnect } from './bot/onboarding';
 import { setupCommands } from './bot/commands';
@@ -21,16 +23,38 @@ const bootstrap = async (): Promise<void> => {
 
   let telegramClient: TelegramClient | null = null;
   let watcher: TelegramWatcher | null = null;
+  let watcherStartInProgress = false;
 
   const startWatcher = async (client: TelegramClient): Promise<void> => {
+    if (!canStartWatcher(watcher !== null, watcherStartInProgress)) {
+      logger.warn('Watcher start skipped: already running or starting');
+      return;
+    }
+    watcherStartInProgress = true;
+
+    const configError = watcherConfigErrorForChannels(getJsonConfig().telegram.channels);
+    if (configError) {
+      watcherStartInProgress = false;
+      throw new Error(configError);
+    }
+
     telegramClient = client;
     watcher = new TelegramWatcher(client, async (message) => service.processMessage(message));
-    watcher.start().catch((err) => logger.error({ err }, 'Watcher error'));
+    watcher.start().catch(async (err) => {
+      watcher = null;
+      logger.error({ err }, 'Watcher error');
+      const chatId = getJsonConfig().chatId;
+      if (chatId) {
+        const reason = err instanceof Error ? err.message : 'unknown';
+        await sendMessage(chatId, `❌ Ошибка мониторинга: ${reason}`);
+      }
+    });
+    watcherStartInProgress = false;
     logger.info('Watcher started');
   };
 
-  setupOnboarding((client) => {
-    startWatcher(client).catch((err) => logger.error({ err }, 'Failed to start watcher after onboarding'));
+  setupOnboarding(async (client) => {
+    await startWatcher(client);
   });
 
   setupCommands(() => ({
@@ -55,8 +79,16 @@ const bootstrap = async (): Promise<void> => {
   const cfg = getJsonConfig();
   const client = await tryAutoConnect();
   if (client) {
-    await startWatcher(client);
-    if (cfg.chatId) {
+    try {
+      await startWatcher(client);
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to start watcher from saved session');
+      if (cfg.chatId) {
+        const reason = error instanceof Error ? error.message : 'unknown';
+        await sendMessage(cfg.chatId, `❌ Мониторинг не запущен: ${reason}`);
+      }
+    }
+    if (cfg.chatId && watcher) {
       await sendMessage(cfg.chatId, 'Бот запущен, мониторинг активен.');
     }
   } else {

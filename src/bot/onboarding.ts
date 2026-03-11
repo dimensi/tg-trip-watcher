@@ -10,12 +10,22 @@ const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 
 
 const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
-type OnAuthorized = (client: TelegramClient) => void;
-
 // Active resolver during auth flow — null when no auth in progress
 let authTextResolver: ((text: string) => void) | null = null;
+let authFlowInProgress = false;
 
-export const setupOnboarding = (onAuthorized: OnAuthorized): void => {
+export const normalizeAuthInput = (text: string): string | null => {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('/')) return null;
+  return trimmed;
+};
+
+export const canStartAuthFlow = (inProgress: boolean): boolean => !inProgress;
+
+type AsyncOnAuthorized = (client: TelegramClient) => Promise<void>;
+
+export const setupOnboarding = (onAuthorized: AsyncOnAuthorized): void => {
   bot.command('start', async (ctx) => {
     const chatId = ctx.chat.id;
     const existing = getJsonConfig().chatId;
@@ -24,6 +34,7 @@ export const setupOnboarding = (onAuthorized: OnAuthorized): void => {
       updateJsonConfig((draft) => { draft.chatId = chatId; });
     } else if (existing !== chatId) {
       logger.warn({ chatId }, 'Unauthorized /start attempt ignored — chatId already set');
+      await sendMessage(chatId, '❌ Бот уже привязан к другому чату. Сбросьте `chatId` в data/config.json в `null` и отправьте /start снова.');
       return;
     }
 
@@ -36,7 +47,7 @@ export const setupOnboarding = (onAuthorized: OnAuthorized): void => {
         await sendMessage(chatId, 'Сессия найдена. Подключаюсь к Telegram...');
         try {
           const client = await connectWithSession(sessionStr);
-          onAuthorized(client);
+          await onAuthorized(client);
           await sendMessage(chatId, '✅ Подключено! Мониторинг запущен.');
           return;
         } catch {
@@ -50,21 +61,30 @@ export const setupOnboarding = (onAuthorized: OnAuthorized): void => {
       return;
     }
 
-    if (authTextResolver !== null) {
+    if (!canStartAuthFlow(authFlowInProgress)) {
       await sendMessage(chatId, '⚠️ Авторизация уже выполняется. Введите код из Telegram или дождитесь таймаута (10 мин).');
       return;
     }
 
     await sendMessage(chatId, 'Начинаю авторизацию в Telegram...');
-    await startAuthFlow(chatId, onAuthorized);
+    authFlowInProgress = true;
+    void startAuthFlow(chatId, onAuthorized);
   });
 
   // Routes free-text messages to auth flow resolver when active
-  bot.on('message:text', async (ctx) => {
-    if (authTextResolver) {
-      authTextResolver(ctx.message.text);
-      authTextResolver = null;
+  bot.on('message:text', async (ctx, next) => {
+    if (!authTextResolver) {
+      await next();
+      return;
     }
+    const input = normalizeAuthInput(ctx.message.text);
+    if (input === null) {
+      await next();
+      return;
+    }
+    const resolver = authTextResolver;
+    authTextResolver = null;
+    resolver(input);
   });
 };
 
@@ -82,7 +102,7 @@ const connectWithSession = async (sessionStr: string): Promise<TelegramClient> =
   return client;
 };
 
-const startAuthFlow = async (chatId: number, onAuthorized: OnAuthorized): Promise<void> => {
+const startAuthFlow = async (chatId: number, onAuthorized: AsyncOnAuthorized): Promise<void> => {
   const cfg = getJsonConfig();
   const phoneNumber = process.env.TELEGRAM_PHONE_NUMBER!;
 
@@ -123,13 +143,14 @@ const startAuthFlow = async (chatId: number, onAuthorized: OnAuthorized): Promis
     fs.mkdirSync(path.dirname(sessionPath), { recursive: true });
     fs.writeFileSync(sessionPath, sessionStr, 'utf8');
 
-    onAuthorized(client);
+    await onAuthorized(client);
     await sendMessage(chatId, '✅ Авторизация успешна! Мониторинг запущен.');
   } catch (error) {
     logger.error({ err: error }, 'Auth flow failed');
     await sendMessage(chatId, `❌ Ошибка авторизации: ${error instanceof Error ? error.message : 'unknown'}`);
   } finally {
     authTextResolver = null;
+    authFlowInProgress = false;
   }
 };
 

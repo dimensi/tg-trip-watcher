@@ -4,7 +4,7 @@ const DATE_RANGE_REGEX = /(\d{2}\.\d{2}\.\d{2,4})\s*[-–]\s*(\d{2}\.\d{2}\.\d{2
 const PRICE_REGEX = /(?:цена|стоимость)\s*[:\-]?\s*([\d\s]+)\s*[₽pр]/i;
 const NIGHTS_REGEX = /(\d{1,2})\s*(?:ноч(?:ей|и|ь)|nights?)/i;
 const URL_REGEX = /(https?:\/\/[^\s]+)/i;
-const DEPARTURE_REGEX = /(?:вылет(?:\s+из)?|из\s*:)\s*([^\n]+)/i;
+const DEPARTURE_REGEX = /(?:вылет(?:\s+из)?|из)\s*:?\s*([^\n]+)/i;
 
 const normalizeDate = (value: string): string => {
   const parts = value.split('.');

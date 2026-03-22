@@ -7,15 +7,15 @@ const inRange = (value: string, from?: string, to?: string): boolean => {
 };
 
 export const matchesFilters = (tour: ParsedTour, filters: TourFilters): boolean => {
-  if (filters.maxPrice !== undefined && tour.price > filters.maxPrice) {
+  if (filters.maxPrice !== undefined && (tour.price === undefined || tour.price > filters.maxPrice)) {
     return false;
   }
 
-  if (filters.minNights !== undefined && tour.nights < filters.minNights) {
+  if (filters.minNights !== undefined && (tour.nights === undefined || tour.nights < filters.minNights)) {
     return false;
   }
 
-  if (filters.maxNights !== undefined && tour.nights > filters.maxNights) {
+  if (filters.maxNights !== undefined && (tour.nights === undefined || tour.nights > filters.maxNights)) {
     return false;
   }
 
@@ -23,7 +23,7 @@ export const matchesFilters = (tour: ParsedTour, filters: TourFilters): boolean 
     return false;
   }
 
-  if (!inRange(tour.dateEnd, filters.dateFrom, filters.dateTo)) {
+  if (tour.dateEnd && !inRange(tour.dateEnd, filters.dateFrom, filters.dateTo)) {
     return false;
   }
 

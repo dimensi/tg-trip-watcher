@@ -1,11 +1,11 @@
 export interface ParsedTour {
   destination: string;
-  nights: number;
+  nights?: number;
   departureCities: string[];
   dateStart: string;
-  dateEnd: string;
-  price: number;
-  bookingUrl: string;
+  dateEnd?: string;
+  price?: number;
+  bookingUrl?: string;
   confidence: number;
 }
 

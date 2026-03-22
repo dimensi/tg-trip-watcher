@@ -6,6 +6,7 @@ Production-ready Telegram watcher for tracking profitable travel offers from Tel
 - Telegram user authorization via gramJS with persisted session file.
 - Real-time channel monitoring with reconnect loop and FloodWait handling.
 - Hybrid parsing pipeline: regex first, then OpenRouter LLM fallback.
+- Free-form post parsing with candidate segmentation, prose date extraction, and best-offer selection.
 - SQLite storage with duplicate protection and notification history.
 - Flexible .env filters (price, departure city, dates, nights).
 - Telegram Bot API notifications for matched deals.
@@ -98,6 +99,8 @@ Configured through `data/config.json`:
 - `departureCities` (exact city match against parsed departure city list)
 - `arrivalCities` (case-insensitive partial match against parsed destination)
 - `maxPrice`, `minNights`, `maxNights`, `dateFrom`, `dateTo`
+
+Free-form channel posts can still match filters when they contain a usable destination, departure city, and start date, even if the post omits an explicit date range or full package details.
 
 You can update filters via bot commands and by editing `data/config.json` manually.
 

@@ -49,6 +49,85 @@ MAX: max.ru/piratesru
 VK: vk.com/piratesru
 Горящие туры: max.ru/turs_sale`;
 
+const hainanFreeFormPost = `Хайнань в мае 2026
+
+Супер вылет из Москвы 21 мая 2026 на 12 ночей, прямой пакетный тур.
+Сначала делимся подборкой и полезными ссылками:
+https://t.me/vandroukitours/771
+https://vandrouki.ru/hainan-may
+https://example.com/hainan-note
+
+Бронировать основной вариант:
+https://агентство.рф/hainan-main
+Еще отели и детали:
+https://example.com/hainan-hotels`;
+
+const istanbulWithHotelOnlyFollowUpPost = `Стамбул в мае 2026
+
+5* отели
+Только отели без перелета и тура:
+Даты: 14.05.26 - 21.05.26
+Вылет из: Москва
+https://vandroukitours.example/hotel-only
+
+Основной тур:
+Стамбул
+из Москвы 21 мая 2026 на 12 ночей
+Перелет и отель в одном пакете.
+Подробнее: https://агентство.рф/istanbul-main`;
+
+const istanbulTitleLinePost = `Стамбул в мае 2026
+
+Группа набирается быстро, вылет из Москвы.
+21 мая 2026 на 12 ночей, можно с детьми.
+Сначала полезный канал:
+https://t.me/vandroukitours/884
+https://example.com/istanbul-tip
+
+Бронировать основной вариант:
+https://агентство.рф/istanbul-may`;
+
+const destinationFooterPost = `Анталия, 7 ночей
+Вылет из: Москва
+Даты: 12.06.26 - 19.06.26
+Цена: 45900P
+Бронировать: https://example.com/antalya-main
+
+Все включено`;
+
+const explicitRangeWithLaterProsePost = `Бодрум, 7 ночей
+Вылет из: Москва
+Даты: 12.06.26 - 19.06.26
+Цена: 45900P
+Бронировать: https://example.com/bodrum-main
+
+21 июня 2026 на 12 ночей, без пересадок`;
+
+const departureCleanupPost = `Сочи, 7 ночей
+Визы не нужны
+Вылет из: Москва без пересадок
+Даты: 12.06.26 - 19.06.26
+Цена: 45900P
+Бронировать: https://example.com/sochi-main`;
+
+const preambledDestinationPost = `Подробности по визе
+Подробнее: https://example.com/visa
+
+Стамбул в мае 2026
+из Москвы 21 мая 2026 на 12 ночей
+Бронировать: https://example.com/istanbul-main`;
+
+const bookingVsInfoLinkPost = `Стамбул в мае 2026
+
+из Москвы 21 мая 2026 на 12 ночей
+Бронировать: https://example.com/istanbul-main
+Подробнее по визе: https://example.com/visa`;
+
+const multiDepartureProsePost = `Стамбул в мае 2026
+
+из Москвы и Казани 21 мая 2026 на 7 ночей
+Бронировать: https://example.com/istanbul-main`;
+
 test('regexParseTour parses Pattaya post and marks required fields as complete', () => {
   const parsed = regexParseTour(pattayaPost);
   assert.equal(parsed.destination, 'Паттайя');
@@ -130,10 +209,81 @@ test('regexParseTour parses multiple real posts from dataset', () => {
 
 test('regexParseTour leaves required fields incomplete for non-tour post', () => {
   const parsed = regexParseTour(nonTourPost);
+  assert.equal(parsed.destination, undefined);
+  assert.deepEqual(parsed.departureCities, []);
   assert.equal(parsed.nights, undefined);
   assert.equal(parsed.dateStart, undefined);
   assert.equal(parsed.dateEnd, undefined);
   assert.equal(parsed.price, undefined);
   assert.equal(parsed.bookingUrl, 'https://p.irat.es/tv3');
   assert.equal(hasRequiredTourFields(parsed), false);
+});
+
+test('regexParseTour extracts free-form Hainan details from prose and chooses the main booking link', () => {
+  const parsed = regexParseTour(hainanFreeFormPost);
+  assert.equal(parsed.destination, 'Хайнань');
+  assert.equal(parsed.departureCities?.[0], 'Москва');
+  assert.deepEqual(parsed.departureCities, ['Москва']);
+  assert.equal(parsed.nights, 12);
+  assert.equal(parsed.dateStart, '2026-05-21');
+  assert.equal(parsed.dateEnd, '2026-06-02');
+  assert.equal(parsed.bookingUrl, 'https://агентство.рф/hainan-main');
+});
+
+test('regexParseTour prefers the main offer block over the hotel-only follow-up block', () => {
+  const parsed = regexParseTour(istanbulWithHotelOnlyFollowUpPost);
+  assert.equal(parsed.destination, 'Стамбул');
+  assert.deepEqual(parsed.departureCities, ['Москва']);
+  assert.equal(parsed.nights, 12);
+  assert.equal(parsed.dateStart, '2026-05-21');
+  assert.equal(parsed.dateEnd, '2026-06-02');
+  assert.equal(parsed.bookingUrl, 'https://агентство.рф/istanbul-main');
+});
+
+test('regexParseTour reads destination from a title line and later prose details', () => {
+  const parsed = regexParseTour(istanbulTitleLinePost);
+  assert.equal(parsed.destination, 'Стамбул');
+  assert.deepEqual(parsed.departureCities, ['Москва']);
+  assert.equal(parsed.nights, 12);
+  assert.equal(parsed.dateStart, '2026-05-21');
+  assert.equal(parsed.bookingUrl, 'https://агентство.рф/istanbul-may');
+});
+
+test('regexParseTour keeps the opening destination instead of a later footer line', () => {
+  const parsed = regexParseTour(destinationFooterPost);
+
+  assert.equal(parsed.destination, 'Анталия');
+});
+
+test('regexParseTour keeps an explicit date range over later prose dates', () => {
+  const parsed = regexParseTour(explicitRangeWithLaterProsePost);
+
+  assert.equal(parsed.dateStart, '2026-06-12');
+  assert.equal(parsed.dateEnd, '2026-06-19');
+});
+
+test('regexParseTour ignores unrelated "из" words and trims departure suffixes', () => {
+  const parsed = regexParseTour(departureCleanupPost);
+
+  assert.deepEqual(parsed.departureCities, ['Москва']);
+});
+
+test('regexParseTour prefers the offer title over a non-offer textual preamble', () => {
+  const parsed = regexParseTour(preambledDestinationPost);
+
+  assert.equal(parsed.destination, 'Стамбул');
+  assert.deepEqual(parsed.departureCities, ['Москва']);
+  assert.equal(parsed.dateStart, '2026-05-21');
+});
+
+test('regexParseTour keeps the actionable booking link over a later informational link', () => {
+  const parsed = regexParseTour(bookingVsInfoLinkPost);
+
+  assert.equal(parsed.bookingUrl, 'https://example.com/istanbul-main');
+});
+
+test('regexParseTour splits multiple prose departure cities joined by "и"', () => {
+  const parsed = regexParseTour(multiDepartureProsePost);
+
+  assert.deepEqual(parsed.departureCities, ['Москва', 'Казань']);
 });

@@ -1,5 +1,5 @@
 import { ParsedTour } from '../types/tour';
-import { hasRequiredTourFields, regexParseTour } from './regexParser';
+import { hasRequiredTourFields, hasUsableTourFields, regexParseTour } from './regexParser';
 import { llmParseTour } from './llmParser';
 
 export const parseTour = async (
@@ -8,7 +8,7 @@ export const parseTour = async (
 ): Promise<ParsedTour> => {
   const regexResult = regexParseTour(text);
 
-  if (hasRequiredTourFields(regexResult)) {
+  if (hasRequiredTourFields(regexResult) || hasUsableTourFields(regexResult)) {
     return {
       ...regexResult,
       confidence: 0.85

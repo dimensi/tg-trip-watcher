@@ -9,6 +9,20 @@ const fullRegexPost = `Паттайя, 8 ночей
 Цена: 65700P
 Бронировать: https://пртс.рф/c0g6`;
 
+const usableRegexPost = `Рим
+Вылет из: #Москва
+21 мая 2026`;
+
+const istanbulProsePost = `Стамбул (SAW) в мае 2026
+
+из Москвы 21 мая 2026 на 12 ночей, прямой тур без пересадок.
+Бронировать: https://example.com/istanbul`;
+
+const beijingProsePost = `Пекин (PEK) в мае 2026
+
+из Москвы 14 мая 2026 на 7 ночей, прямой тур без пересадок.
+Бронировать: https://example.com/beijing`;
+
 test('parseTour returns regex-only result with confidence 0.85 when fields are complete', async () => {
   const forbiddenLlmCall = async (): Promise<ParsedTour> => {
     throw new Error('LLM must not be called for complete regex parse');
@@ -22,6 +36,56 @@ test('parseTour returns regex-only result with confidence 0.85 when fields are c
   assert.equal(parsed.dateEnd, '2026-03-23');
   assert.equal(parsed.price, 65700);
   assert.equal(parsed.bookingUrl, 'https://пртс.рф/c0g6');
+  assert.equal(parsed.confidence, 0.85);
+});
+
+test('parseTour returns local regex result without LLM when destination, departure city, and dateStart are present', async () => {
+  let llmCalls = 0;
+  const forbiddenLlmCall = async (): Promise<ParsedTour> => {
+    llmCalls += 1;
+    throw new Error('LLM must not be called for usable local regex parse');
+  };
+
+  const parsed = await parseTour(usableRegexPost, forbiddenLlmCall);
+  assert.equal(llmCalls, 0);
+  assert.equal(parsed.destination, 'Рим');
+  assert.deepEqual(parsed.departureCities, ['Москва']);
+  assert.equal(parsed.dateStart, '2026-05-21');
+  assert.equal(parsed.nights, undefined);
+  assert.equal(parsed.dateEnd, undefined);
+  assert.equal(parsed.price, undefined);
+  assert.equal(parsed.confidence, 0.85);
+});
+
+test('parseTour keeps an Istanbul prose-style post with airport suffix and computed end date without LLM fallback', async () => {
+  let llmCalls = 0;
+  const forbiddenLlmCall = async (): Promise<ParsedTour> => {
+    llmCalls += 1;
+    throw new Error('LLM must not be called for usable local regex parse');
+  };
+
+  const parsed = await parseTour(istanbulProsePost, forbiddenLlmCall);
+  assert.equal(llmCalls, 0);
+  assert.equal(parsed.destination, 'Стамбул (SAW)');
+  assert.deepEqual(parsed.departureCities, ['Москва']);
+  assert.equal(parsed.dateStart, '2026-05-21');
+  assert.equal(parsed.dateEnd, '2026-06-02');
+  assert.equal(parsed.confidence, 0.85);
+});
+
+test('parseTour keeps a Beijing prose-style post with shorter stay and direct-flight wording without LLM fallback', async () => {
+  let llmCalls = 0;
+  const forbiddenLlmCall = async (): Promise<ParsedTour> => {
+    llmCalls += 1;
+    throw new Error('LLM must not be called for usable local regex parse');
+  };
+
+  const parsed = await parseTour(beijingProsePost, forbiddenLlmCall);
+  assert.equal(llmCalls, 0);
+  assert.equal(parsed.destination, 'Пекин (PEK)');
+  assert.deepEqual(parsed.departureCities, ['Москва']);
+  assert.equal(parsed.dateStart, '2026-05-14');
+  assert.equal(parsed.dateEnd, '2026-05-21');
   assert.equal(parsed.confidence, 0.85);
 });
 

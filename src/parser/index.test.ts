@@ -9,6 +9,10 @@ const fullRegexPost = `Паттайя, 8 ночей
 Цена: 65700P
 Бронировать: https://пртс.рф/c0g6`;
 
+const usableRegexPost = `Рим
+Вылет из: #Москва
+21 мая 2026`;
+
 test('parseTour returns regex-only result with confidence 0.85 when fields are complete', async () => {
   const forbiddenLlmCall = async (): Promise<ParsedTour> => {
     throw new Error('LLM must not be called for complete regex parse');
@@ -22,6 +26,24 @@ test('parseTour returns regex-only result with confidence 0.85 when fields are c
   assert.equal(parsed.dateEnd, '2026-03-23');
   assert.equal(parsed.price, 65700);
   assert.equal(parsed.bookingUrl, 'https://пртс.рф/c0g6');
+  assert.equal(parsed.confidence, 0.85);
+});
+
+test('parseTour returns local regex result without LLM when destination, departure city, and dateStart are present', async () => {
+  let llmCalls = 0;
+  const forbiddenLlmCall = async (): Promise<ParsedTour> => {
+    llmCalls += 1;
+    throw new Error('LLM must not be called for usable local regex parse');
+  };
+
+  const parsed = await parseTour(usableRegexPost, forbiddenLlmCall);
+  assert.equal(llmCalls, 0);
+  assert.equal(parsed.destination, 'Рим');
+  assert.deepEqual(parsed.departureCities, ['Москва']);
+  assert.equal(parsed.dateStart, '2026-05-21');
+  assert.equal(parsed.nights, undefined);
+  assert.equal(parsed.dateEnd, undefined);
+  assert.equal(parsed.price, undefined);
   assert.equal(parsed.confidence, 0.85);
 });
 

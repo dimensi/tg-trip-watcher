@@ -365,3 +365,9 @@ export const hasRequiredTourFields = (tour: Partial<ParsedTour>): tour is Parsed
       tour.bookingUrl
   );
 };
+
+export const hasUsableTourFields = (
+  tour: Partial<ParsedTour>
+): tour is Pick<ParsedTour, 'destination' | 'departureCities' | 'dateStart'> & Partial<ParsedTour> => {
+  return Boolean(tour.destination && tour.departureCities && tour.departureCities.length > 0 && tour.dateStart);
+};

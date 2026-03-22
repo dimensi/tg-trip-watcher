@@ -11,15 +11,16 @@ const buildSourcePostLink = (source?: RawMessageContext): string | null => {
 
 const formatTour = (tour: ParsedTour, source?: RawMessageContext): string => {
   const sourceLink = buildSourcePostLink(source);
+  const dateLine = tour.dateEnd ? `${tour.dateStart} - ${tour.dateEnd}` : tour.dateStart;
   return [
     '🔥 Найден тур',
     '',
     `Направление: ${tour.destination}`,
     `Вылет: ${tour.departureCities.join(', ')}`,
-    `Даты: ${tour.dateStart} - ${tour.dateEnd}`,
-    `Ночей: ${tour.nights}`,
-    `Цена: ${tour.price} ₽`,
-    `Ссылка: ${tour.bookingUrl}`,
+    `Даты: ${dateLine}`,
+    tour.nights !== undefined ? `Ночей: ${tour.nights}` : null,
+    tour.price !== undefined ? `Цена: ${tour.price} ₽` : null,
+    tour.bookingUrl ? `Ссылка: ${tour.bookingUrl}` : null,
     sourceLink ? `Пост в канале: ${sourceLink}` : null,
     sourceLink ? `Канал: ${source?.sourceChannel ?? 'unknown'}` : null,
   ].filter((line): line is string => Boolean(line)).join('\n');

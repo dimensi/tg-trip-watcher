@@ -29,26 +29,29 @@ const tourSamples = [
 Бронировать: https://пртс.рф/5P2M`,
 ];
 
-const assertParsedShape = (parsed: {
-  destination: string;
-  nights: number;
-  departureCities: string[];
-  dateStart: string;
-  dateEnd: string;
-  price: number;
-  bookingUrl: string;
-  confidence: number;
-}): void => {
+const assertParsedShape = (parsed: ParsedTour): void => {
   assert.equal(typeof parsed.destination, "string");
   assert.ok(parsed.destination.length > 0);
+  if (parsed.nights === undefined) {
+    throw new Error("Expected nights to be present in live LLM result");
+  }
   assert.equal(Number.isInteger(parsed.nights), true);
   assert.ok(parsed.nights > 0);
   assert.equal(Array.isArray(parsed.departureCities), true);
   assert.ok(parsed.departureCities.length > 0);
   assert.match(parsed.dateStart, /^\d{4}-\d{2}-\d{2}$/);
+  if (parsed.dateEnd === undefined) {
+    throw new Error("Expected dateEnd to be present in live LLM result");
+  }
   assert.match(parsed.dateEnd, /^\d{4}-\d{2}-\d{2}$/);
+  if (parsed.price === undefined) {
+    throw new Error("Expected price to be present in live LLM result");
+  }
   assert.equal(typeof parsed.price, "number");
   assert.ok(parsed.price > 0);
+  if (parsed.bookingUrl === undefined) {
+    throw new Error("Expected bookingUrl to be present in live LLM result");
+  }
   assert.ok(parsed.bookingUrl.length > 0);
   assert.ok(parsed.confidence >= 0 && parsed.confidence <= 1);
 };
@@ -67,3 +70,4 @@ test(
     }
   },
 );
+import { ParsedTour } from '../types/tour';

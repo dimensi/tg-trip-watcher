@@ -60,7 +60,7 @@ export const parseProseDate = (value: string): string | undefined => {
 
 export const computeDateEnd = (dateStart: string, nights: number | undefined): string | undefined => {
   const match = dateStart.match(ISO_DATE_REGEX);
-  if (!match || !Number.isInteger(nights) || nights < 0) {
+  if (!match || typeof nights !== 'number' || !Number.isInteger(nights) || nights < 0) {
     return undefined;
   }
 

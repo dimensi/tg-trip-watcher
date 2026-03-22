@@ -110,6 +110,24 @@ const departureCleanupPost = `Сочи, 7 ночей
 Цена: 45900P
 Бронировать: https://example.com/sochi-main`;
 
+const preambledDestinationPost = `Подробности по визе
+Подробнее: https://example.com/visa
+
+Стамбул в мае 2026
+из Москвы 21 мая 2026 на 12 ночей
+Бронировать: https://example.com/istanbul-main`;
+
+const bookingVsInfoLinkPost = `Стамбул в мае 2026
+
+из Москвы 21 мая 2026 на 12 ночей
+Бронировать: https://example.com/istanbul-main
+Подробнее по визе: https://example.com/visa`;
+
+const multiDepartureProsePost = `Стамбул в мае 2026
+
+из Москвы и Казани 21 мая 2026 на 7 ночей
+Бронировать: https://example.com/istanbul-main`;
+
 test('regexParseTour parses Pattaya post and marks required fields as complete', () => {
   const parsed = regexParseTour(pattayaPost);
   assert.equal(parsed.destination, 'Паттайя');
@@ -248,4 +266,24 @@ test('regexParseTour ignores unrelated "из" words and trims departure suffixes
   const parsed = regexParseTour(departureCleanupPost);
 
   assert.deepEqual(parsed.departureCities, ['Москва']);
+});
+
+test('regexParseTour prefers the offer title over a non-offer textual preamble', () => {
+  const parsed = regexParseTour(preambledDestinationPost);
+
+  assert.equal(parsed.destination, 'Стамбул');
+  assert.deepEqual(parsed.departureCities, ['Москва']);
+  assert.equal(parsed.dateStart, '2026-05-21');
+});
+
+test('regexParseTour keeps the actionable booking link over a later informational link', () => {
+  const parsed = regexParseTour(bookingVsInfoLinkPost);
+
+  assert.equal(parsed.bookingUrl, 'https://example.com/istanbul-main');
+});
+
+test('regexParseTour splits multiple prose departure cities joined by "и"', () => {
+  const parsed = regexParseTour(multiDepartureProsePost);
+
+  assert.deepEqual(parsed.departureCities, ['Москва', 'Казань']);
 });

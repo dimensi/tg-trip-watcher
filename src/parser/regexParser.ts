@@ -4,14 +4,13 @@ import { ParsedTour } from '../types/tour';
 
 const DATE_RANGE_REGEX = /(\d{2}\.\d{2}\.\d{2,4})\s*[-–]\s*(\d{2}\.\d{2}\.\d{2,4})/;
 const PRICE_REGEX = /(?:цена|стоимость)\s*[:\-]?\s*([\d\s]+)\s*[₽pр]/i;
-const URL_REGEX = /(https?:\/\/[^\s]+)/gi;
 const HOTEL_ONLY_REGEX = /\b(?:\d+\*\s*отели|только\s+отели|отели\s+без\s+(?:перелета|тура)|без\s+перелета(?:\s+и\s+тура)?|без\s+тура)\b/i;
 const MONTH_WORD = '(?:январ[ьяе]|феврал[ьяе]|март[ае]?|апрел[ьяе]|ма[йяе]|июн[ьяе]|июл[ьяе]|август[ае]?|сентябр[ьяе]|октябр[ьяе]|ноябр[ьяе]|декабр[ьяе])';
 const DATE_WORD_REGEX = new RegExp(`\\b${MONTH_WORD}\\s+\\d{4}\\b`, 'i');
 const DATE_SUFFIX_REGEX = new RegExp(`\\s+(?:в|на)\\s+${MONTH_WORD}\\s+\\d{4}\\b.*$`, 'i');
 const DAY_DATE_SUFFIX_REGEX = new RegExp(`\\s+\\d{1,2}\\s+${MONTH_WORD}\\s+\\d{4}\\b.*$`, 'i');
 const NIGHT_SUFFIX_REGEX = /\s+\d{1,2}\s*(?:ноч(?:ей|и|ь)|nights?)\b.*$/i;
-const DESTINATION_BLACKLIST = /\b(?:вылет|заезд|туры?|отель|отели|даты?|стоимость|цена|группа|подборк|бронировать|основной|полезн|сначала|пакетн|дешев|без\s+визы|в\s+одну\s+сторону|max\.ru|vk\.com|t\.me)\b/i;
+const DESTINATION_BLACKLIST = /\b(?:вылет|заезд|туры?|отель|отели|даты?|стоимость|цена|группа|подборк|бронировать|основной|полезн|подробност|сначала|пакетн|дешев|без\s+визы|в\s+одну\s+сторону|max\.ru|vk\.com|t\.me)\b/i;
 const DESTINATION_LABEL_REGEX = /^[A-ZА-ЯЁ0-9]{2,}\s*:/;
 const DATE_LINE_REGEX = /\b(?:\d{1,2}\.\d{1,2}\.\d{2,4}|\d{1,2}\s+[а-яё]+\s+\d{4})\b/i;
 const DATE_LEADING_REGEX = /^(?:\d{1,2}\.\d{1,2}\.\d{2,4}|\d{1,2}\s+[а-яё]+\s+\d{4})\b/i;
@@ -20,6 +19,7 @@ const URL_FIND_REGEX = /https?:\/\/[^\s]+/gi;
 const OFFER_SPLIT_REGEX = /^\s*основн(?:ой\s+тур|ой\s+вариант)\s*:?\s*$/i;
 
 const hasBookingHint = (value: string): boolean => /брон|подробнее|основн|вариант|ссылк|куп|оплат/i.test(value);
+const hasStrongBookingHint = (value: string): boolean => /брон|основн|вариант|куп|оплат/i.test(value);
 
 const normalizeDate = (value: string): string => {
   const parts = value.split('.');
@@ -36,6 +36,7 @@ const normalizeCityName = (value: string): string => {
     'Москве': 'Москва',
     'Москву': 'Москва',
     'Самары': 'Самара',
+    'Казани': 'Казань',
     'Самаре': 'Самара',
     'Самару': 'Самара',
     'Владивостока': 'Владивосток',
@@ -56,6 +57,7 @@ const normalizeCityName = (value: string): string => {
 
 const isPlausibleDestinationLine = (line: string): boolean => {
   const trimmed = line.trim();
+  const lower = trimmed.toLowerCase();
 
   if (
     !trimmed ||
@@ -64,7 +66,10 @@ const isPlausibleDestinationLine = (line: string): boolean => {
     DESTINATION_LABEL_REGEX.test(trimmed) ||
     HOTEL_ONLY_REGEX.test(trimmed) ||
     hasBookingHint(trimmed) ||
-    trimmed.toLowerCase().includes('вылет') || /^\s*из\b/i.test(trimmed) ||
+    lower.includes('подробност') ||
+    lower.includes('вылет') ||
+    lower === 'из' ||
+    lower.startsWith('из ') ||
     PRICE_REGEX.test(trimmed) ||
     /^https?:\/\//i.test(trimmed) ||
     /https?:\/\//i.test(trimmed) ||
@@ -82,9 +87,16 @@ const isPlausibleDestinationLine = (line: string): boolean => {
 
 const extractDestination = (text: string): string | undefined => {
   let destination: string | undefined;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let nonEmptyLineIndex = 0;
 
   for (const line of text.split(/\r?\n/)) {
+    if (!line.trim()) {
+      continue;
+    }
+
     if (!isPlausibleDestinationLine(line)) {
+      nonEmptyLineIndex += 1;
       continue;
     }
 
@@ -101,8 +113,18 @@ const extractDestination = (text: string): string | undefined => {
 
     candidate = cleanText(candidate);
     if (candidate) {
-      destination ??= candidate;
+      const score =
+        (nonEmptyLineIndex === 0 ? 30 : 0) +
+        (DATE_WORD_REGEX.test(line) || DATE_LINE_REGEX.test(line) ? 40 : 0) +
+        (NIGHT_SUFFIX_REGEX.test(line) ? 20 : 0);
+
+      if (score > bestScore) {
+        destination = candidate;
+        bestScore = score;
+      }
     }
+
+    nonEmptyLineIndex += 1;
   }
 
   return destination || undefined;
@@ -148,7 +170,7 @@ const extractDepartureCities = (text: string): string[] => {
       .replace(/\s+с\s+багажом.*$/i, '')
       .replace(/\s+(?:без\s+пересадок|прямой\s+рейс|с\s+багажом)\b.*$/i, '');
 
-    for (const part of value.split(/[,#]/)) {
+    for (const part of value.split(/[,#]|\s+и\s+/i)) {
       const city = normalizeCityName(part.replace(/^#/, ''));
       if (city) {
         lastCities.push(city);
@@ -215,31 +237,40 @@ const extractPrice = (text: string): number | undefined => {
 
 const extractBookingUrl = (text: string): string | undefined => {
   const lines = text.split(/\r?\n/);
-  const urls: Array<{ url: string; lineIndex: number }> = [];
-  let lastHintLine = -1;
+  const urls: Array<{ url: string; lineIndex: number; score: number }> = [];
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const line = lines[lineIndex];
-    URL_FIND_REGEX.lastIndex = 0;
     const lineUrls = line.match(URL_FIND_REGEX) ?? [];
+    const previousLine = lineIndex > 0 ? lines[lineIndex - 1] : '';
+    const strongHint = hasStrongBookingHint(line) || hasStrongBookingHint(previousLine);
+    const weakHint = hasBookingHint(line) || hasBookingHint(previousLine);
 
     for (const url of lineUrls) {
-      urls.push({ url, lineIndex });
-    }
-
-    if (hasBookingHint(line)) {
-      lastHintLine = lineIndex;
-    }
-  }
-
-  if (lastHintLine >= 0) {
-    const hintedUrl = urls.find(({ lineIndex }) => lineIndex >= lastHintLine);
-    if (hintedUrl) {
-      return hintedUrl.url;
+      urls.push({
+        url,
+        lineIndex,
+        score: strongHint ? 100 : weakHint ? 50 : 0,
+      });
     }
   }
 
-  return urls[0]?.url;
+  if (urls.length === 0) {
+    return undefined;
+  }
+
+  let bestUrl = urls[0];
+
+  for (const candidate of urls.slice(1)) {
+    if (
+      candidate.score > bestUrl.score ||
+      (candidate.score === bestUrl.score && candidate.lineIndex < bestUrl.lineIndex)
+    ) {
+      bestUrl = candidate;
+    }
+  }
+
+  return bestUrl.url;
 };
 
 const parseCandidate = (text: string): Partial<ParsedTour> => {

@@ -86,8 +86,9 @@ Required GitHub secrets:
 - `OPENROUTER_API_KEY`
 - `TELEGRAM_PHONE_NUMBER` (optional)
 
-Optional GitHub variable:
+Optional GitHub variables:
 - `LOG_LEVEL` (default `info`)
+- `MT_PROXY` (`tg://proxy?server=ip_address&port=443&secret=secret_key`)
 
 ## Telegram login flow
 - For first start, set `TELEGRAM_LOGIN_CODE` in `.env` (code from Telegram SMS/app).

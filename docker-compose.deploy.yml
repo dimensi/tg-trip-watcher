@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    # Optional env var in .env: MT_PROXY
     volumes:
       - /data/tg-trip-watcher/data:/app/data
     healthcheck:

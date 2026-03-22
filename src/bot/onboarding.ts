@@ -4,6 +4,7 @@ import pino from 'pino';
 import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { envConfig, getJsonConfig, updateJsonConfig } from '../config';
+import { buildTelegramClientParams } from '../telegram/mtProxy';
 import { bot, sendMessage } from './index';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'onboarding' });
@@ -13,6 +14,7 @@ const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 // Active resolver during auth flow — null when no auth in progress
 let authTextResolver: ((text: string) => void) | null = null;
 let authFlowInProgress = false;
+const telegramClientParams = buildTelegramClientParams(process.env.MT_PROXY);
 
 export const normalizeAuthInput = (text: string): string | null => {
   const trimmed = text.trim();
@@ -93,7 +95,7 @@ const connectWithSession = async (sessionStr: string): Promise<TelegramClient> =
     new StringSession(sessionStr),
     envConfig.telegramApiId,
     envConfig.telegramApiHash,
-    { connectionRetries: 10, useWSS: true }
+    telegramClientParams
   );
   await client.connect();
   if (!(await client.isUserAuthorized())) {
@@ -110,7 +112,7 @@ const startAuthFlow = async (chatId: number, onAuthorized: AsyncOnAuthorized): P
     new StringSession(''),
     envConfig.telegramApiId,
     envConfig.telegramApiHash,
-    { connectionRetries: 10, useWSS: true }
+    telegramClientParams
   );
 
   const timeout = new Promise<never>((_, reject) =>

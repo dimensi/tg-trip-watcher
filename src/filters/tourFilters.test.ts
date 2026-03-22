@@ -21,6 +21,28 @@ const baseFilters: TourFilters = {
   dateTo: '2026-05-01',
 };
 
+const istanbulParsedTour: ParsedTour = {
+  destination: 'Стамбул (SAW)',
+  nights: 12,
+  departureCities: ['Москва'],
+  dateStart: '2026-05-21',
+  dateEnd: '2026-06-02',
+  price: 62000,
+  bookingUrl: 'https://example.com/istanbul',
+  confidence: 0.85,
+};
+
+const beijingParsedTour: ParsedTour = {
+  destination: 'Пекин (PEK)',
+  nights: 7,
+  departureCities: ['Москва'],
+  dateStart: '2026-05-14',
+  dateEnd: '2026-05-21',
+  price: 54000,
+  bookingUrl: 'https://example.com/beijing',
+  confidence: 0.85,
+};
+
 test('matchesFilters rejects tours when dateEnd is outside configured range', () => {
   assert.equal(matchesFilters(baseTour, baseFilters), false);
 });
@@ -182,4 +204,38 @@ test('matchesFilters rejects tours when none of arrival cities match destination
     dateEnd: '2026-05-01',
   };
   assert.equal(matchesFilters(inRangeTour, filters), false);
+});
+
+test('matchesFilters keeps an Istanbul-style parsed tour when arrival and departure filters match', () => {
+  const matchingFilters: TourFilters = {
+    departureCities: ['Москва'],
+    arrivalCities: ['стамбул'],
+    dateFrom: '2026-05-01',
+    dateTo: '2026-06-30',
+  };
+
+  const wrongDepartureFilters: TourFilters = {
+    ...matchingFilters,
+    departureCities: ['Казань'],
+  };
+
+  assert.equal(matchesFilters(istanbulParsedTour, matchingFilters), true);
+  assert.equal(matchesFilters(istanbulParsedTour, wrongDepartureFilters), false);
+});
+
+test('matchesFilters keeps a Beijing-style parsed tour when arrival and departure filters match', () => {
+  const matchingFilters: TourFilters = {
+    departureCities: ['Москва'],
+    arrivalCities: ['пекин'],
+    dateFrom: '2026-05-01',
+    dateTo: '2026-06-30',
+  };
+
+  const wrongDepartureFilters: TourFilters = {
+    ...matchingFilters,
+    departureCities: ['Санкт-Петербург'],
+  };
+
+  assert.equal(matchesFilters(beijingParsedTour, matchingFilters), true);
+  assert.equal(matchesFilters(beijingParsedTour, wrongDepartureFilters), false);
 });

@@ -1,13 +1,16 @@
 import { ParsedTour } from '../types/tour';
 import { hasRequiredTourFields, hasUsableTourFields, regexParseTour } from './regexParser';
-import { llmParseTour } from './llmParser';
+import { llmParseTour, llmParseTourWithRaw } from './llmParser';
 
 export type ParseTourRoute = 'regex' | 'llm-merge';
 
 export type ParseTourTrace = {
   route: ParseTourRoute;
   regex: ReturnType<typeof regexParseTour>;
+  /** Parsed LLM JSON (after validation). Only when route is llm-merge. */
   llm?: ParsedTour;
+  /** Raw message content from the model (same JSON string as parsed into `llm`). Only when route is llm-merge and the default OpenRouter parser was used. */
+  llmRaw?: string;
   result: ParsedTour;
 };
 
@@ -25,7 +28,15 @@ export const parseTourWithTrace = async (
     return { route: 'regex', regex: regexResult, result };
   }
 
-  const llmResult = await llmParser(text);
+  let llmResult: ParsedTour;
+  let llmRaw: string | undefined;
+  if (llmParser === llmParseTour) {
+    const withRaw = await llmParseTourWithRaw(text);
+    llmResult = withRaw.parsed;
+    llmRaw = withRaw.rawContent;
+  } else {
+    llmResult = await llmParser(text);
+  }
   const result: ParsedTour = {
     destination: regexResult.destination ?? llmResult.destination,
     nights: regexResult.nights ?? llmResult.nights,
@@ -36,7 +47,7 @@ export const parseTourWithTrace = async (
     bookingUrl: regexResult.bookingUrl ?? llmResult.bookingUrl,
     confidence: Math.max(llmResult.confidence, 0.7),
   };
-  return { route: 'llm-merge', regex: regexResult, llm: llmResult, result };
+  return { route: 'llm-merge', regex: regexResult, llm: llmResult, llmRaw, result };
 };
 
 export const parseTour = async (

@@ -63,7 +63,7 @@ docker-compose.deploy.yml
 
 ## Parser debug (no Telegram)
 
-Run the same regex → LLM pipeline as production and print a JSON trace (`route`, `regex`, optional `llm`, `result`) without starting the bot:
+Run the same regex → LLM pipeline as production and print a JSON trace (`route`, `regex`, optional `llm`, optional `llmRaw` raw model JSON string, `result`) without starting the bot:
 
 ```bash
 npm run parse-post -- "short post text"

@@ -52,7 +52,13 @@ const validateParsed = (value: Partial<ParsedTour>): ParsedTour => {
   };
 };
 
-export const llmParseTour = async (text: string): Promise<ParsedTour> => {
+export type LlmParseWithRawResult = {
+  parsed: ParsedTour;
+  /** Message content string from the API (before JSON.parse). */
+  rawContent: string;
+};
+
+export const llmParseTourWithRaw = async (text: string): Promise<LlmParseWithRawResult> => {
   const cfg = getJsonConfig().openRouter;
 
   const response = await getOpenRouterClient().chat.completions.create({
@@ -82,5 +88,10 @@ export const llmParseTour = async (text: string): Promise<ParsedTour> => {
   }
 
   const parsed = JSON.parse(content) as Partial<ParsedTour>;
-  return validateParsed(parsed);
+  return { parsed: validateParsed(parsed), rawContent: content };
+};
+
+export const llmParseTour = async (text: string): Promise<ParsedTour> => {
+  const { parsed } = await llmParseTourWithRaw(text);
+  return parsed;
 };

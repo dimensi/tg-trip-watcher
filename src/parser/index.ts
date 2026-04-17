@@ -37,14 +37,16 @@ export const parseTourWithTrace = async (
   } else {
     llmResult = await llmParser(text);
   }
+  // LLM-first: we only called the model because regex was not usable alone; trust LLM and fill gaps from regex.
   const result: ParsedTour = {
-    destination: regexResult.destination ?? llmResult.destination,
-    nights: regexResult.nights ?? llmResult.nights,
-    departureCities: regexResult.departureCities?.length ? regexResult.departureCities : llmResult.departureCities,
-    dateStart: regexResult.dateStart ?? llmResult.dateStart,
-    dateEnd: regexResult.dateEnd ?? llmResult.dateEnd,
-    price: regexResult.price ?? llmResult.price,
-    bookingUrl: regexResult.bookingUrl ?? llmResult.bookingUrl,
+    destination: llmResult.destination ?? regexResult.destination,
+    nights: llmResult.nights ?? regexResult.nights,
+    departureCities:
+      llmResult.departureCities?.length ? llmResult.departureCities : (regexResult.departureCities ?? []),
+    dateStart: llmResult.dateStart ?? regexResult.dateStart,
+    dateEnd: llmResult.dateEnd ?? regexResult.dateEnd,
+    price: llmResult.price ?? regexResult.price,
+    bookingUrl: llmResult.bookingUrl ?? regexResult.bookingUrl,
     confidence: Math.max(llmResult.confidence, 0.7),
   };
   return { route: 'llm-merge', regex: regexResult, llm: llmResult, llmRaw, result };

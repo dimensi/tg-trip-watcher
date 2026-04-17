@@ -89,7 +89,7 @@ test('parseTour keeps a Beijing prose-style post with shorter stay and direct-fl
   assert.equal(parsed.confidence, 0.85);
 });
 
-test('parseTour falls back to LLM and merges regex fields over LLM values', async () => {
+test('parseTour prefers LLM fields when LLM fallback runs', async () => {
   const incompletePost = `Париж, 5 ночей
 Цена: 12345P
 Бронировать: https://example.com/tour`;
@@ -106,10 +106,10 @@ test('parseTour falls back to LLM and merges regex fields over LLM values', asyn
   };
 
   const parsed = await parseTour(incompletePost, async () => llmResult);
-  assert.equal(parsed.destination, 'Париж');
-  assert.equal(parsed.nights, 5);
-  assert.equal(parsed.price, 12345);
-  assert.equal(parsed.bookingUrl, 'https://example.com/tour');
+  assert.equal(parsed.destination, 'Paris');
+  assert.equal(parsed.nights, 6);
+  assert.equal(parsed.price, 99999);
+  assert.equal(parsed.bookingUrl, 'https://llm.example/tour');
   assert.deepEqual(parsed.departureCities, ['Москва']);
   assert.equal(parsed.dateStart, '2026-04-01');
   assert.equal(parsed.dateEnd, '2026-04-07');

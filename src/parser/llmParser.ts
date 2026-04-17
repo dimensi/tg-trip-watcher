@@ -29,26 +29,21 @@ If uncertain, still return best guess and lower confidence.
 Text:\n${text.slice(0, maxChars)}`;
 
 const validateParsed = (value: Partial<ParsedTour>): ParsedTour => {
-  if (
-    !value.destination ||
-    !value.nights ||
-    !value.departureCities?.length ||
-    !value.dateStart ||
-    !value.dateEnd ||
-    !value.price ||
-    !value.bookingUrl
-  ) {
-    throw new Error('LLM response missing required fields');
+  const missing: string[] = [];
+  if (!value.destination) missing.push('destination');
+  if (value.nights === undefined || value.nights === null) missing.push('nights');
+  if (!value.departureCities?.length) missing.push('departureCities');
+  if (!value.dateStart) missing.push('dateStart');
+  if (!value.dateEnd) missing.push('dateEnd');
+  if (value.price === undefined || value.price === null) missing.push('price');
+  if (!value.bookingUrl) missing.push('bookingUrl');
+  if (missing.length > 0) {
+    throw new Error(`LLM response missing required fields: ${missing.join(', ')}`);
   }
+  const v = value as ParsedTour;
   return {
-    destination: value.destination,
-    nights: value.nights,
-    departureCities: value.departureCities,
-    dateStart: value.dateStart,
-    dateEnd: value.dateEnd,
-    price: value.price,
-    bookingUrl: value.bookingUrl,
-    confidence: value.confidence ?? 0.6,
+    ...v,
+    confidence: v.confidence ?? 0.6,
   };
 };
 

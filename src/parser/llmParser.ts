@@ -6,6 +6,8 @@ import { computeDateEnd } from './dateParsing';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'llm-parser' });
 
+const MAX_TOURS_PER_MESSAGE = 20;
+
 let client: OpenAI | null = null;
 
 const getOpenRouterClient = (): OpenAI => {
@@ -22,21 +24,25 @@ const getOpenRouterClient = (): OpenAI => {
   return client;
 };
 
-const buildPrompt = (text: string, maxChars: number): string =>
-  `Extract ONE tour offer from the message (Russian or English). Reply with ONE flat JSON object only — not an array, not wrapped in "tours"/"offers".
+const buildPromptMulti = (text: string, maxChars: number): string =>
+  `Extract tour offers from the message (Russian or English). Reply with ONE JSON object only, no markdown.
 
-If the message lists several separate deals (different cities, dates, or links), choose exactly ONE: prefer the last block that clearly states destination, departure city, dates, price, and its own booking link. Ignore hotel-name-only lines without a full tour line.
+Shape: { "tours": [ { ... }, ... ] }
+- "tours" is a non-empty array. Each element is one distinct offer (different destination and/or dates and/or price and/or link).
+- If the message describes only one tour, use a single element.
+- Ignore hotel-only lines (e.g. "Radisson 5*") that are not a full separate tour line with destination and dates.
+- Each tour object must have the same keys and rules as below.
 
-Required keys (all must be present):
+Per tour fields (all required for each object):
 - destination: main resort/city name (string), no marketing fluff.
-- nights: integer. If the text gives a range (e.g. "12-14 ночей"), pick ONE number (prefer the lower bound).
-- departureCities: string array of departure cities (e.g. "из Москвы" → ["Москва"]; "Петербург"/СПб → ["Санкт-Петербург"]). Never leave empty if any city is mentioned.
-- dateStart, dateEnd: YYYY-MM-DD. You should almost always set BOTH. If you have a start date and a night count, compute dateEnd as the calendar day of checkout after the last night (e.g. start 2026-05-27 + 14 nights → dateEnd is 2026-06-10). If the text gives an explicit date range, use those dates. Only skip dateEnd when neither nights nor any end/range date can be inferred at all.
-- price: single integer in RUB (or stated currency as a number without symbols). If a range (e.g. 75900-76600), use the lower value.
-- bookingUrl: the https URL that belongs to the same offer you chose (match city/dates to the right link).
-- confidence: 0..1; lower when you had to guess dates, ranges, or missing details.
+- nights: integer. If the text gives a range (e.g. "5-6 ночей"), pick ONE number (prefer the lower bound).
+- departureCities: string array (e.g. "из Москвы" → ["Москва"]; СПб → ["Санкт-Петербург"]). Never empty if a city is mentioned for that offer.
+- dateStart: YYYY-MM-DD. dateEnd: same format when inferable; if you have start + nights, set dateEnd = checkout day after the last night. Prefer correct year when the text implies it.
+- price: single integer. If a range, use the lower value.
+- bookingUrl: the https URL that belongs to that same offer (match destination/dates to the correct link).
+- confidence: 0..1 per offer.
 
-Rules: never omit required keys (destination, nights, departureCities, dateStart, price, bookingUrl, confidence). Always include dateEnd when you can derive it from the text (default: from dateStart + nights). Never use null for required fields.
+Rules: never omit required keys inside each tour. Never use null for required fields. Use best inference and lower confidence when unsure.
 
 Text:
 ${text.slice(0, maxChars)}`;
@@ -44,7 +50,7 @@ ${text.slice(0, maxChars)}`;
 const isPlainObject = (x: unknown): x is Record<string, unknown> =>
   x !== null && typeof x === 'object' && !Array.isArray(x);
 
-/** OpenRouter sometimes returns an array of offers or { tours: [...] }; collapse to one Partial<ParsedTour>. */
+/** @deprecated Prefer extractToursPartialsFromLlmJson for multi-tour responses. */
 export const normalizeLlmTourPayload = (raw: unknown): Partial<ParsedTour> => {
   if (raw === null || raw === undefined) {
     throw new Error('LLM returned empty JSON');
@@ -78,6 +84,32 @@ export const normalizeLlmTourPayload = (raw: unknown): Partial<ParsedTour> => {
     return tour as Partial<ParsedTour>;
   }
   return raw as Partial<ParsedTour>;
+};
+
+export const extractToursPartialsFromLlmJson = (raw: unknown): Partial<ParsedTour>[] => {
+  if (raw === null || raw === undefined) {
+    throw new Error('LLM returned empty JSON');
+  }
+  if (Array.isArray(raw)) {
+    const rows = raw.filter(isPlainObject) as Partial<ParsedTour>[];
+    if (rows.length === 0) {
+      throw new Error('LLM returned an empty array');
+    }
+    return rows;
+  }
+  if (!isPlainObject(raw)) {
+    throw new Error('LLM JSON must be an object or array');
+  }
+  for (const key of ['tours', 'offers', 'deals', 'results', 'items'] as const) {
+    const arr = raw[key];
+    if (Array.isArray(arr) && arr.length > 0) {
+      return arr.filter(isPlainObject) as Partial<ParsedTour>[];
+    }
+  }
+  if (typeof raw.destination === 'string' || typeof raw.bookingUrl === 'string') {
+    return [raw as Partial<ParsedTour>];
+  }
+  throw new Error('LLM JSON must contain a non-empty "tours" array or a single tour object');
 };
 
 const stripMarkdownJsonFence = (content: string): string => {
@@ -125,27 +157,26 @@ const validateParsed = (value: Partial<ParsedTour>): ParsedTour => {
   };
 };
 
-export type LlmParseWithRawResult = {
-  parsed: ParsedTour;
-  /** Message content string from the API (before JSON.parse). */
+export type LlmParseToursWithRawResult = {
+  tours: ParsedTour[];
   rawContent: string;
 };
 
-export const llmParseTourWithRaw = async (text: string): Promise<LlmParseWithRawResult> => {
+export const llmParseToursWithRaw = async (text: string): Promise<LlmParseToursWithRawResult> => {
   const cfg = getJsonConfig().openRouter;
 
   const response = await getOpenRouterClient().chat.completions.create({
     model: cfg.model,
     temperature: 0.1,
     response_format: { type: 'json_object' },
-    max_tokens: 1024,
+    max_tokens: 4096,
     messages: [
       {
         role: 'system',
         content:
-          'You extract structured tour offers for a search indexer. Output must be one flat JSON object (not an array). If the user message contains several offers, pick one offer per instructions. Every required field must be filled; infer conservatively and lower confidence when unsure.',
+          'You extract structured tour offers. Output must be one JSON object with a top-level "tours" array. Each tour must include every required field. If a message contains several distinct offers, list each as a separate object in "tours".',
       },
-      { role: 'user', content: buildPrompt(text, cfg.maxInputChars) },
+      { role: 'user', content: buildPromptMulti(text, cfg.maxInputChars) },
     ],
   }, {
     timeout: cfg.timeoutMs,
@@ -165,8 +196,35 @@ export const llmParseTourWithRaw = async (text: string): Promise<LlmParseWithRaw
   }
 
   const raw = parseJsonLenient(content);
-  const parsed = normalizeLlmTourPayload(raw);
-  return { parsed: validateParsed(parsed), rawContent: content };
+  const partials = extractToursPartialsFromLlmJson(raw);
+  const capped = partials.slice(0, MAX_TOURS_PER_MESSAGE);
+  const tours = capped.map((p, i) => {
+    try {
+      return validateParsed(p);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`Tour ${i + 1}: ${msg}`);
+    }
+  });
+  if (tours.length === 0) {
+    throw new Error('LLM returned no valid tours');
+  }
+  return { tours, rawContent: content };
+};
+
+export const llmParseTours = async (text: string): Promise<ParsedTour[]> => {
+  const { tours } = await llmParseToursWithRaw(text);
+  return tours;
+};
+
+export type LlmParseWithRawResult = {
+  parsed: ParsedTour;
+  rawContent: string;
+};
+
+export const llmParseTourWithRaw = async (text: string): Promise<LlmParseWithRawResult> => {
+  const { tours, rawContent } = await llmParseToursWithRaw(text);
+  return { parsed: tours[0], rawContent };
 };
 
 export const llmParseTour = async (text: string): Promise<ParsedTour> => {

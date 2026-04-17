@@ -16,6 +16,7 @@ test('parseTourWithTrace: regex route without LLM', async () => {
   const trace = await parseTourWithTrace(fullRegexPost, mockLlm);
   assert.equal(trace.route, 'regex');
   assert.equal(trace.result.confidence, 0.85);
+  assert.deepEqual(trace.results, [trace.result]);
   assert.equal(trace.llm, undefined);
   const direct = await parseTour(fullRegexPost, mockLlm);
   assert.deepEqual(trace.result, direct);
@@ -41,6 +42,7 @@ test('parseTourWithTrace: llm-merge route includes llm snapshot and matches pars
 
   const trace = await parseTourWithTrace(incompletePost, mockLlm);
   assert.equal(trace.route, 'llm-merge');
+  assert.equal(trace.results.length, 1);
   assert.deepEqual(trace.llm, llmResult);
   const direct = await parseTour(incompletePost, mockLlm);
   assert.deepEqual(trace.result, direct);

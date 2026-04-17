@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeLlmTourPayload } from './llmParser';
+import { extractToursPartialsFromLlmJson, normalizeLlmTourPayload } from './llmParser';
 
 test('normalizeLlmTourPayload: flat object unchanged', () => {
   const o = {
@@ -44,4 +44,13 @@ test('normalizeLlmTourPayload: unwraps tours key', () => {
   };
   const out = normalizeLlmTourPayload({ tours: [{ destination: 'X', bookingUrl: 'https://y' }, inner] });
   assert.equal(out.destination, 'Пекин');
+});
+
+test('extractToursPartialsFromLlmJson: returns all tours', () => {
+  const a = { destination: 'Шанхай', bookingUrl: 'https://a' };
+  const b = { destination: 'Пекин', bookingUrl: 'https://b' };
+  const rows = extractToursPartialsFromLlmJson({ tours: [a, b] });
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].destination, 'Шанхай');
+  assert.equal(rows[1].destination, 'Пекин');
 });

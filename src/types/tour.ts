@@ -20,6 +20,8 @@ export interface StoredTourRecord {
   id: number;
   source_channel: string;
   message_id: number;
+  /** Multiple offers from the same Telegram message (0-based). */
+  offer_index: number;
   raw_text: string;
   parsed_json: string;
   matched_filters: number;

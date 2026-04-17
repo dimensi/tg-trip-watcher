@@ -63,7 +63,7 @@ docker-compose.deploy.yml
 
 ## Parser debug (no Telegram)
 
-Run the same regex → LLM pipeline as production and print a JSON trace (`route`, `regex`, optional `llm`, optional `llmRaw` raw model JSON string, `result`) without starting the bot:
+Run the same regex → LLM pipeline as production and print a JSON trace (`route`, `regex`, optional `llm` / `llmTours`, optional `llmRaw`, `result`, **`results`** — all merged tours; several when the LLM extracts multiple offers from one post) without starting the bot:
 
 ```bash
 npm run parse-post -- "short post text"
@@ -120,6 +120,8 @@ Configured through `data/config.json`:
 Bot: `/nights 5 12` (range), `/nights 7` (exactly 7 nights), `/nights off` (clear night limits).
 
 Free-form channel posts can still match filters when they contain a usable destination, departure city, and start date, even if the post omits an explicit date range or full package details.
+
+When regex alone is not enough, the LLM returns a **`tours` array**; each offer is merged with regex hints, filtered, and stored/notified **separately** (`offer_index` in SQLite).
 
 You can update filters via bot commands and by editing `data/config.json` manually.
 

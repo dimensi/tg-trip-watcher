@@ -11,7 +11,8 @@
     "test:llm-live": "RUN_LLM_PARSER_TESTS=1 tsx --test src/parser/llmParser.live.test.ts",
     "parse-post": "tsx src/cli/parsePost.ts",
     "lint": "eslint \"src/**/*.ts\"",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test \"src/**/*.test.ts\" --test-ignore \"**/*.live.test.ts\""
   },
   "engines": {
     "node": ">=20"

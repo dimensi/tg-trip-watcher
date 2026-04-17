@@ -47,3 +47,42 @@ test('parseTourWithTrace: llm-merge route includes llm snapshot and matches pars
   const direct = await parseTour(incompletePost, mockLlm);
   assert.deepEqual(trace.result, direct);
 });
+
+test('parseTourWithTrace: llm-merge with multiple LLM tours yields multiple merged results', async () => {
+  const incompletePost = `Париж и Рим, туры
+Цена: 12345P
+Бронировать: https://example.com/tour`;
+
+  const tourA: ParsedTour = {
+    destination: 'Paris',
+    nights: 5,
+    departureCities: ['Москва'],
+    dateStart: '2026-04-01',
+    dateEnd: '2026-04-06',
+    price: 10000,
+    bookingUrl: 'https://llm.example/a',
+    confidence: 0.7,
+  };
+  const tourB: ParsedTour = {
+    destination: 'Rome',
+    nights: 7,
+    departureCities: ['Москва'],
+    dateStart: '2026-05-01',
+    dateEnd: '2026-05-08',
+    price: 20000,
+    bookingUrl: 'https://llm.example/b',
+    confidence: 0.65,
+  };
+
+  const mockLlm = async (): Promise<ParsedTour[]> => [tourA, tourB];
+
+  const trace = await parseTourWithTrace(incompletePost, mockLlm);
+  assert.equal(trace.route, 'llm-merge');
+  assert.equal(trace.results.length, 2);
+  assert.equal(trace.llmTours?.length, 2);
+  assert.deepEqual(trace.llm, tourA);
+  assert.deepEqual(trace.llmTours, [tourA, tourB]);
+  assert.deepEqual(trace.result, trace.results[0]);
+  const direct = await parseTour(incompletePost, mockLlm);
+  assert.deepEqual(direct, trace.results[0]);
+});

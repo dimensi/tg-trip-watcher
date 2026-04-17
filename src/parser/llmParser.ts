@@ -123,15 +123,28 @@ const stripMarkdownJsonFence = (content: string): string => {
 
 const parseJsonLenient = (content: string): unknown => {
   const stripped = stripMarkdownJsonFence(content);
+  const fail = (reason: string, err: unknown): never => {
+    const preview =
+      content.length > 16000
+        ? `${content.slice(0, 16000)}… (truncated, ${String(content.length)} chars)`
+        : content;
+    logger.warn({ err, preview }, `Failed to parse LLM JSON (${reason})`);
+    throw new Error('OpenRouter returned non-JSON content');
+  };
+
   try {
     return JSON.parse(stripped) as unknown;
-  } catch {
+  } catch (err) {
     const start = stripped.indexOf('{');
     const end = stripped.lastIndexOf('}');
     if (start >= 0 && end > start) {
-      return JSON.parse(stripped.slice(start, end + 1)) as unknown;
+      try {
+        return JSON.parse(stripped.slice(start, end + 1)) as unknown;
+      } catch (err2) {
+        return fail('lenient brace slice', err2);
+      }
     }
-    throw new Error('OpenRouter returned non-JSON content');
+    return fail('no JSON object span', err);
   }
 };
 

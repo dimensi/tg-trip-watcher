@@ -59,6 +59,11 @@ async function main(): Promise<void> {
   if (parsed.textArg !== undefined) {
     text = parsed.textArg;
   } else {
+    if (process.stdin.isTTY) {
+      process.stderr.write(
+        'Reading post text from stdin. Paste or pipe content, then end input (Ctrl+D on Unix, Ctrl+Z then Enter on Windows). Or pass the text as the first argument.\n'
+      );
+    }
     text = await readStdin();
   }
   text = text.trim();

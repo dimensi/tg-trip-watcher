@@ -4,6 +4,9 @@ import { llmParseTour, llmParseToursWithRaw } from './llmParser';
 
 export type ParseTourRoute = 'regex' | 'llm-merge';
 
+/** Custom parser may return one tour or several (e.g. tests / stubs). Default path uses OpenRouter multi-tour. */
+export type LlmParserFn = (input: string) => Promise<ParsedTour | ParsedTour[]>;
+
 export type ParseTourTrace = {
   route: ParseTourRoute;
   regex: ReturnType<typeof regexParseTour>;
@@ -33,7 +36,7 @@ const mergeLlmFirst = (regexResult: ReturnType<typeof regexParseTour>, llmResult
 
 export const parseTourWithTrace = async (
   text: string,
-  llmParser: (input: string) => Promise<ParsedTour> = llmParseTour
+  llmParser: LlmParserFn = llmParseTour
 ): Promise<ParseTourTrace> => {
   const regexResult = regexParseTour(text);
 
@@ -53,7 +56,8 @@ export const parseTourWithTrace = async (
     llmTours = w.tours;
     llmRaw = w.rawContent;
   } else {
-    llmTours = [await llmParser(text)];
+    const out = await llmParser(text);
+    llmTours = Array.isArray(out) ? out : [out];
   }
 
   const results = llmTours.map((llmResult) => mergeLlmFirst(regexResult, llmResult));
@@ -71,7 +75,7 @@ export const parseTourWithTrace = async (
 /** All tours found in the message (regex: at most one; LLM: one per distinct offer). */
 export const parseTours = async (
   text: string,
-  llmParser: (input: string) => Promise<ParsedTour> = llmParseTour
+  llmParser: LlmParserFn = llmParseTour
 ): Promise<ParsedTour[]> => {
   const trace = await parseTourWithTrace(text, llmParser);
   return trace.results;
@@ -79,7 +83,7 @@ export const parseTours = async (
 
 export const parseTour = async (
   text: string,
-  llmParser: (input: string) => Promise<ParsedTour> = llmParseTour
+  llmParser: LlmParserFn = llmParseTour
 ): Promise<ParsedTour> => {
   const trace = await parseTourWithTrace(text, llmParser);
   return trace.result;

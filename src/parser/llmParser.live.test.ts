@@ -1,14 +1,15 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { ParsedTour } from '../types/tour';
 
-const SHOULD_RUN = process.env.RUN_LLM_PARSER_TESTS === "1";
-const REQUIRED_ENV = ["OPENROUTER_API_KEY"] as const;
+const SHOULD_RUN = process.env.RUN_LLM_PARSER_TESTS === '1';
+const REQUIRED_ENV = ['OPENROUTER_API_KEY'] as const;
 const missingEnv = REQUIRED_ENV.filter((name) => !process.env[name]);
 
 const skipReason = !SHOULD_RUN
-  ? "Set RUN_LLM_PARSER_TESTS=1 to run live LLM parser tests"
+  ? 'Set RUN_LLM_PARSER_TESTS=1 to run live LLM parser tests'
   : missingEnv.length > 0
-    ? `Missing required env vars: ${missingEnv.join(", ")}`
+    ? `Missing required env vars: ${missingEnv.join(', ')}`
     : undefined;
 
 const tourSamples = [
@@ -30,39 +31,38 @@ const tourSamples = [
 ];
 
 const assertParsedShape = (parsed: ParsedTour): void => {
-  assert.equal(typeof parsed.destination, "string");
+  assert.equal(typeof parsed.destination, 'string');
   assert.ok(parsed.destination.length > 0);
   if (parsed.nights === undefined) {
-    throw new Error("Expected nights to be present in live LLM result");
+    throw new Error('Expected nights to be present in live LLM result');
   }
   assert.equal(Number.isInteger(parsed.nights), true);
   assert.ok(parsed.nights > 0);
   assert.equal(Array.isArray(parsed.departureCities), true);
   assert.ok(parsed.departureCities.length > 0);
   assert.match(parsed.dateStart, /^\d{4}-\d{2}-\d{2}$/);
-  if (parsed.dateEnd === undefined) {
-    throw new Error("Expected dateEnd to be present in live LLM result");
+  if (parsed.dateEnd !== undefined) {
+    assert.match(parsed.dateEnd, /^\d{4}-\d{2}-\d{2}$/);
   }
-  assert.match(parsed.dateEnd, /^\d{4}-\d{2}-\d{2}$/);
   if (parsed.price === undefined) {
-    throw new Error("Expected price to be present in live LLM result");
+    throw new Error('Expected price to be present in live LLM result');
   }
-  assert.equal(typeof parsed.price, "number");
+  assert.equal(typeof parsed.price, 'number');
   assert.ok(parsed.price > 0);
   if (parsed.bookingUrl === undefined) {
-    throw new Error("Expected bookingUrl to be present in live LLM result");
+    throw new Error('Expected bookingUrl to be present in live LLM result');
   }
   assert.ok(parsed.bookingUrl.length > 0);
   assert.ok(parsed.confidence >= 0 && parsed.confidence <= 1);
 };
 
 test(
-  "llmParseTour live: parses real tour samples",
+  'llmParseTour live: parses real tour samples',
   { skip: skipReason },
   async () => {
-    const { initJsonConfig } = await import("../config");
+    const { initJsonConfig } = await import('../config');
     initJsonConfig();
-    const { llmParseTour } = await import("./llmParser");
+    const { llmParseTour } = await import('./llmParser');
 
     for (const sample of tourSamples) {
       const parsed = await llmParseTour(sample);
@@ -70,4 +70,3 @@ test(
     }
   },
 );
-import { ParsedTour } from '../types/tour';

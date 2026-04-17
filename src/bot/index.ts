@@ -1,10 +1,13 @@
 import { Bot, BotError } from 'grammy';
-import pino from 'pino';
 import { envConfig, getJsonConfig } from '../config';
+import { createLogger } from '../logging/logger';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'bot' });
+const logger = createLogger('bot');
 
-export const bot = new Bot(envConfig.botToken);
+/** `sensitiveLogs: false` (default): HttpError message must not include raw fetch URL (token). */
+export const bot = new Bot(envConfig.botToken, {
+  client: { sensitiveLogs: false },
+});
 
 export const isStartCommand = (text: string | undefined): boolean => {
   if (!text) return false;

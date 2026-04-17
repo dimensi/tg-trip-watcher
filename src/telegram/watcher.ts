@@ -1,10 +1,10 @@
-import pino from 'pino';
+import { createLogger } from '../logging/logger';
 import { NewMessage } from 'telegram/events';
 import { Api, TelegramClient } from 'telegram';
 import { RawMessageContext } from '../types/tour';
 import { shouldConnectClient } from './watcherConnection';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'telegram-watcher' });
+const logger = createLogger('telegram-watcher');
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 

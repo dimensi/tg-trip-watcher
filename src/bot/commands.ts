@@ -1,8 +1,8 @@
-import pino from 'pino';
 import { getJsonConfig, JsonConfig, updateJsonConfig } from '../config';
+import { createLogger } from '../logging/logger';
 import { bot, sendMessage } from './index';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'bot-commands' });
+const logger = createLogger('bot-commands');
 
 type RuntimeStatus = { authorized: boolean; watching: boolean };
 type ReloadRuntime = () => Promise<void>;
@@ -24,6 +24,72 @@ export const BOT_COMMANDS = [
   { command: 'addchannel', description: 'Добавить канал мониторинга' },
   { command: 'rmchannel', description: 'Удалить канал мониторинга' },
 ] as const;
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const RETRYABLE_NETWORK_CODES = new Set([
+  'EAI_AGAIN',
+  'EAI_NODATA',
+  'ENOTFOUND',
+  'ETIMEDOUT',
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ENETUNREACH',
+]);
+
+/** Grammy HttpError nests the underlying fetch error under `.error`; Node may use `.cause`. */
+const getNetworkErrorCode = (err: unknown): string | undefined => {
+  if (!err || typeof err !== 'object') return undefined;
+  const o = err as Record<string, unknown>;
+  const nested = o.error;
+  if (nested && typeof nested === 'object') {
+    const e = nested as { code?: unknown; errno?: unknown };
+    if (typeof e.code === 'string') return e.code;
+    if (typeof e.errno === 'string') return e.errno;
+  }
+  if (typeof o.code === 'string') return o.code;
+  const cause = o.cause;
+  if (cause && typeof cause === 'object') {
+    const c = (cause as { code?: unknown }).code;
+    if (typeof c === 'string') return c;
+  }
+  return undefined;
+};
+
+const isRetryableSetCommandsError = (err: unknown): boolean => {
+  const code = getNetworkErrorCode(err);
+  return code !== undefined && RETRYABLE_NETWORK_CODES.has(code);
+};
+
+const setMyCommandsWithRetry = async (
+  commands: typeof BOT_COMMANDS,
+  maxAttempts = 6
+): Promise<void> => {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await bot.api.setMyCommands(commands);
+      if (attempt > 1) {
+        logger.info({ attempt }, 'setMyCommands succeeded after retry');
+      }
+      return;
+    } catch (err) {
+      const retryable = isRetryableSetCommandsError(err);
+      if (!retryable || attempt === maxAttempts) {
+        logger.error({ err, attempt, maxAttempts, retryable }, 'Failed to register bot commands via setMyCommands');
+        return;
+      }
+      const delayMs = Math.min(1000 * 2 ** (attempt - 1), 30_000);
+      logger.warn(
+        { attempt, maxAttempts, delayMs, code: getNetworkErrorCode(err) },
+        'setMyCommands failed, retrying'
+      );
+      await sleep(delayMs);
+    }
+  }
+};
 
 const HELP_TEXT = `<b>Доступные команды:</b>
 
@@ -87,9 +153,7 @@ export const setupCommands = (
   getStatus: () => RuntimeStatus,
   reloadRuntime: ReloadRuntime
 ): void => {
-  void bot.api.setMyCommands(BOT_COMMANDS).catch((err) => {
-    logger.error({ err }, 'Failed to register bot commands via setMyCommands');
-  });
+  void setMyCommandsWithRetry(BOT_COMMANDS);
 
   bot.command('help', async (ctx) => {
     await sendMessage(ctx.chat.id, HELP_TEXT);

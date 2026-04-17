@@ -1,10 +1,10 @@
 import OpenAI from 'openai';
-import pino from 'pino';
+import { createLogger } from '../logging/logger';
 import { getJsonConfig } from '../config/jsonConfig';
 import { ParsedTour } from '../types/tour';
 import { computeDateEnd } from './dateParsing';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'llm-parser' });
+const logger = createLogger('llm-parser');
 
 const MAX_TOURS_PER_MESSAGE = 20;
 

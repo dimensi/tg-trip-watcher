@@ -1,8 +1,8 @@
-import pino from 'pino';
+import { createLogger } from '../logging/logger';
 import { envConfig, getJsonConfig } from '../config';
 import { ParsedTour, RawMessageContext } from '../types/tour';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'telegram-notifier' });
+const logger = createLogger('telegram-notifier');
 
 const buildSourcePostLink = (source?: RawMessageContext): string | null => {
   if (!source?.sourceChannelUsername) return null;

@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import pino from 'pino';
+import { createLogger } from '../logging/logger';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'json-config' });
+const logger = createLogger('json-config');
 
 const configSchema = z.object({
   chatId: z.number().nullable().default(null),

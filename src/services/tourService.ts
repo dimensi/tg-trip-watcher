@@ -1,4 +1,4 @@
-import pino from 'pino';
+import { createLogger } from '../logging/logger';
 import { getJsonConfig } from '../config';
 import { TourDatabase } from '../db';
 import { matchesFilters } from '../filters/tourFilters';
@@ -6,7 +6,7 @@ import { TelegramNotifier } from '../notifier/telegramNotifier';
 import { parseTours } from '../parser';
 import { RawMessageContext } from '../types/tour';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'tour-service' });
+const logger = createLogger('tour-service');
 
 export class TourService {
   public constructor(

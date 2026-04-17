@@ -1,4 +1,4 @@
-import pino from 'pino';
+import { rootLogger } from './logging/logger';
 import { initJsonConfig, getJsonConfig, onConfigChange, watchConfigFile } from './config';
 import { TourDatabase } from './db';
 import { TelegramNotifier } from './notifier/telegramNotifier';
@@ -12,7 +12,7 @@ import { setupOnboarding, tryAutoConnect } from './bot/onboarding';
 import { setupCommands } from './bot/commands';
 import { TelegramClient } from 'telegram';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const logger = rootLogger;
 
 const bootstrap = async (): Promise<void> => {
   initJsonConfig();

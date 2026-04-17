@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import pino from 'pino';
+import { createLogger } from '../logging/logger';
 import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { envConfig, getJsonConfig, updateJsonConfig } from '../config';
 import { buildTelegramClientParams } from '../telegram/mtProxy';
 import { bot, sendMessage } from './index';
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'onboarding' });
+const logger = createLogger('onboarding');
 
 const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 

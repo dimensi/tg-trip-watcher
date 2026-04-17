@@ -13,7 +13,7 @@ export const BOT_COMMANDS = [
   { command: 'status', description: 'Текущее состояние и настройки' },
   { command: 'filters', description: 'Показать фильтры' },
   { command: 'setprice', description: 'Установить максимум цены' },
-  { command: 'nights', description: 'Установить диапазон ночей' },
+  { command: 'nights', description: 'Ночи: min max, одно число, или off' },
   { command: 'dates', description: 'Установить диапазон дат' },
   { command: 'addcity', description: 'Добавить город вылета' },
   { command: 'rmcity', description: 'Удалить город вылета' },
@@ -31,7 +31,7 @@ const HELP_TEXT = `<b>Доступные команды:</b>
 /status — статус бота
 /filters — текущие фильтры
 /setprice 50000 — установить макс. цену
-/nights 5 12 — мин/макс ночей
+/nights 5 12 — от 5 до 12 ночей; /nights 7 — ровно 7; /nights off — без ограничения
 /dates 2026-03-01 2026-09-01 — диапазон дат
 /addcity Казань — добавить город вылета
 /rmcity Казань — убрать город вылета
@@ -130,18 +130,60 @@ export const setupCommands = (
 
   bot.command('nights', async (ctx) => {
     const chatId = ctx.chat.id;
-    const parts = (ctx.match ?? '').split(/\s+/);
-    if (parts.length !== 2) {
-      await sendMessage(chatId, 'Использование: /nights 5 12');
+    const raw = (ctx.match ?? '').trim();
+    if (!raw) {
+      await sendMessage(
+        chatId,
+        [
+          'Использование:',
+          '/nights 5 12 — от 5 до 12 ночей',
+          '/nights 7 — ровно 7 ночей',
+          '/nights off — убрать ограничение по ночам',
+        ].join('\n'),
+      );
       return;
     }
-    const [min, max] = parts.map(Number);
-    if (Number.isNaN(min) || Number.isNaN(max) || min < 0 || max < min) {
-      await sendMessage(chatId, 'Некорректные значения. Пример: /nights 5 12');
+
+    const token = raw.toLowerCase();
+    if (token === 'off' || token === 'clear' || token === 'сброс') {
+      updateJsonConfig((d) => {
+        delete d.filters.minNights;
+        delete d.filters.maxNights;
+      });
+      await sendMessage(chatId, 'Ограничение по ночам снято (любое число ночей).');
       return;
     }
-    updateJsonConfig((d) => { d.filters.minNights = min; d.filters.maxNights = max; });
-    await sendMessage(chatId, `Ночей: ${min} — ${max}`);
+
+    const parts = raw.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) {
+      const n = Number(parts[0]);
+      if (Number.isNaN(n) || n < 0 || !Number.isInteger(n)) {
+        await sendMessage(chatId, 'Укажите целое число ночей, например: /nights 7');
+        return;
+      }
+      updateJsonConfig((d) => {
+        d.filters.minNights = n;
+        d.filters.maxNights = n;
+      });
+      await sendMessage(chatId, `Ночей: ровно ${n}`);
+      return;
+    }
+
+    if (parts.length === 2) {
+      const [min, max] = parts.map(Number);
+      if (Number.isNaN(min) || Number.isNaN(max) || min < 0 || max < min || !Number.isInteger(min) || !Number.isInteger(max)) {
+        await sendMessage(chatId, 'Некорректные значения. Пример: /nights 5 12');
+        return;
+      }
+      updateJsonConfig((d) => {
+        d.filters.minNights = min;
+        d.filters.maxNights = max;
+      });
+      await sendMessage(chatId, `Ночей: ${min} — ${max}`);
+      return;
+    }
+
+    await sendMessage(chatId, 'Слишком много аргументов. Пример: /nights 5 12 или /nights 7');
   });
 
   bot.command('dates', async (ctx) => {

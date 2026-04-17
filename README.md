@@ -115,6 +115,10 @@ Configured through `data/config.json`:
 - `arrivalCities` (case-insensitive partial match against parsed destination)
 - `maxPrice`, `minNights`, `maxNights`, `dateFrom`, `dateTo`
 
+**Nights:** optional range `minNights`–`maxNights` (inclusive). If both are set to the same value, only that night count matches. Omitted means no constraint on nights.
+
+Bot: `/nights 5 12` (range), `/nights 7` (exactly 7 nights), `/nights off` (clear night limits).
+
 Free-form channel posts can still match filters when they contain a usable destination, departure city, and start date, even if the post omits an explicit date range or full package details.
 
 You can update filters via bot commands and by editing `data/config.json` manually.
@@ -141,6 +145,3 @@ Channel updates are applied automatically at runtime; manual fallback is availab
 - Start built app: `npm run start`
 - Lint: `npm run lint`
 - Typecheck: `npm run typecheck`
-
-
-test

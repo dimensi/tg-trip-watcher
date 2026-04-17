@@ -42,9 +42,9 @@ Production-ready Telegram watcher for tracking profitable travel offers from Tel
   types/
     tour.ts
   index.ts
-/docker
-  Dockerfile
-  docker-compose.yml
+Dockerfile
+docker-compose.yml
+docker-compose.deploy.yml
 ```
 
 ## Quick start (local)
@@ -61,7 +61,7 @@ Production-ready Telegram watcher for tracking profitable travel offers from Tel
 
 ## Docker deployment
 ```bash
-docker compose -f docker/docker-compose.yml up -d --build
+docker compose up -d --build
 ```
 
 Persistent data is stored in Docker volume `tg_watcher_data`:
@@ -72,7 +72,7 @@ Persistent data is stored in Docker volume `tg_watcher_data`:
 - Workflow: `.github/workflows/deploy.yml`
 - Deploy compose: `docker-compose.deploy.yml`
 - On each push to `main`:
-  - image is built from `docker/Dockerfile` and pushed to `ghcr.io/<owner>/<repo>:latest`
+  - image is built from `Dockerfile` and pushed to `ghcr.io/<owner>/<repo>:latest`
   - VPS pulls latest image and runs `docker compose up -d`
 
 Required GitHub secrets:

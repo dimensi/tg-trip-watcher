@@ -2,7 +2,7 @@ services:
   tg-trip-watcher:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
     container_name: tg-trip-watcher
     restart: always
     env_file:

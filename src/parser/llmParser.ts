@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import pino from 'pino';
 import { getJsonConfig } from '../config/jsonConfig';
 import { ParsedTour } from '../types/tour';
+import { computeDateEnd } from './dateParsing';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'llm-parser' });
 
@@ -22,11 +23,21 @@ const getOpenRouterClient = (): OpenAI => {
 };
 
 const buildPrompt = (text: string, maxChars: number): string =>
-  `Extract a tour offer from text. Return strict JSON only with keys:
-destination(string), nights(number), departureCities(string[]), dateStart(YYYY-MM-DD), dateEnd(YYYY-MM-DD), price(number), bookingUrl(string), confidence(number 0..1).
-If uncertain, still return best guess and lower confidence.
+  `Extract a single tour offer from the message (Russian or English). Reply with ONE JSON object only, no markdown.
 
-Text:\n${text.slice(0, maxChars)}`;
+Required keys (all must be present):
+- destination: main resort/city name (string), no marketing fluff.
+- nights: integer. If the text gives a range (e.g. "12-14 ночей"), pick ONE number (prefer the lower bound).
+- departureCities: string array of departure cities (e.g. "из Москвы" → ["Москва"]; "Петербург"/СПб → ["Санкт-Петербург"]). Never leave empty if any city is mentioned.
+- dateStart, dateEnd: YYYY-MM-DD. You should almost always set BOTH. If you have a start date and a night count, compute dateEnd as the calendar day of checkout after the last night (e.g. start 2026-05-27 + 14 nights → dateEnd is 2026-06-10). If the text gives an explicit date range, use those dates. Only skip dateEnd when neither nights nor any end/range date can be inferred at all.
+- price: single integer in RUB (or stated currency as a number without symbols). If a range (e.g. 75900-76600), use the lower value.
+- bookingUrl: one https URL from the text; if several, prefer the booking/tour link.
+- confidence: 0..1; lower when you had to guess dates, ranges, or missing details.
+
+Rules: never omit required keys (destination, nights, departureCities, dateStart, price, bookingUrl, confidence). Always include dateEnd when you can derive it from the text (default: from dateStart + nights). Never use null for required fields.
+
+Text:
+${text.slice(0, maxChars)}`;
 
 const validateParsed = (value: Partial<ParsedTour>): ParsedTour => {
   const missing: string[] = [];
@@ -34,16 +45,19 @@ const validateParsed = (value: Partial<ParsedTour>): ParsedTour => {
   if (value.nights === undefined || value.nights === null) missing.push('nights');
   if (!value.departureCities?.length) missing.push('departureCities');
   if (!value.dateStart) missing.push('dateStart');
-  if (!value.dateEnd) missing.push('dateEnd');
   if (value.price === undefined || value.price === null) missing.push('price');
   if (!value.bookingUrl) missing.push('bookingUrl');
   if (missing.length > 0) {
     throw new Error(`LLM response missing required fields: ${missing.join(', ')}`);
   }
   const v = value as ParsedTour;
+  const inferredDateEnd =
+    v.dateEnd ??
+    (v.dateStart && v.nights !== undefined ? computeDateEnd(v.dateStart, v.nights) : undefined);
   return {
     ...v,
     confidence: v.confidence ?? 0.6,
+    dateEnd: inferredDateEnd ?? undefined,
   };
 };
 
@@ -62,7 +76,11 @@ export const llmParseTourWithRaw = async (text: string): Promise<LlmParseWithRaw
     response_format: { type: 'json_object' },
     max_tokens: 500,
     messages: [
-      { role: 'system', content: 'You are an accurate travel offer extractor. Return valid JSON only.' },
+      {
+        role: 'system',
+        content:
+          'You extract structured tour offers for a search indexer. Output is a single JSON object; every required field must always be filled; infer conservatively and lower confidence when unsure.',
+      },
       { role: 'user', content: buildPrompt(text, cfg.maxInputChars) },
     ],
   }, {

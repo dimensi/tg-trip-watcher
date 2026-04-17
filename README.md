@@ -33,6 +33,8 @@ Production-ready Telegram watcher for tracking profitable travel offers from Tel
     regexParser.ts
     llmParser.ts
     index.ts
+  cli/
+    parsePost.ts
   filters/
     tourFilters.ts
   notifier/
@@ -58,6 +60,18 @@ docker-compose.deploy.yml
    npm install
    npm run dev
    ```
+
+## Parser debug (no Telegram)
+
+Run the same regex → LLM pipeline as production and print a JSON trace (`route`, `regex`, optional `llm`, `result`) without starting the bot:
+
+```bash
+npm run parse-post -- "short post text"
+printf '%s' 'multiline
+post' | npm run parse-post
+```
+
+Set `OPENROUTER_API_KEY` in `.env` when the post takes the LLM branch. Optional: `--config /path/to/config.json` (same schema as `data/config.json`).
 
 ## Docker deployment
 ```bash

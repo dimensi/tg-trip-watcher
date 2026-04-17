@@ -1,14 +1,25 @@
 import OpenAI from 'openai';
 import pino from 'pino';
-import { envConfig, getJsonConfig } from '../config';
+import { getJsonConfig } from '../config/jsonConfig';
 import { ParsedTour } from '../types/tour';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }).child({ module: 'llm-parser' });
 
-const client = new OpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: envConfig.openRouterApiKey,
-});
+let client: OpenAI | null = null;
+
+const getOpenRouterClient = (): OpenAI => {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing OPENROUTER_API_KEY');
+  }
+  if (!client) {
+    client = new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey,
+    });
+  }
+  return client;
+};
 
 const buildPrompt = (text: string, maxChars: number): string =>
   `Extract a tour offer from text. Return strict JSON only with keys:
@@ -44,7 +55,7 @@ const validateParsed = (value: Partial<ParsedTour>): ParsedTour => {
 export const llmParseTour = async (text: string): Promise<ParsedTour> => {
   const cfg = getJsonConfig().openRouter;
 
-  const response = await client.chat.completions.create({
+  const response = await getOpenRouterClient().chat.completions.create({
     model: cfg.model,
     temperature: 0.1,
     response_format: { type: 'json_object' },

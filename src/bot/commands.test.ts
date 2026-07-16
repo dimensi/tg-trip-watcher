@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BOT_COMMANDS, formatStatusText, runReloadCommand } from './commands';
+import { BOT_COMMANDS, formatStatusText, resetFilters, runReloadCommand } from './commands';
 import { JsonConfig } from '../config';
 
 test('BOT_COMMANDS contains all expected command names', () => {
@@ -10,6 +10,7 @@ test('BOT_COMMANDS contains all expected command names', () => {
     'help',
     'status',
     'filters',
+    'resetfilters',
     'setprice',
     'nights',
     'dates',
@@ -22,6 +23,49 @@ test('BOT_COMMANDS contains all expected command names', () => {
     'addchannel',
     'rmchannel',
   ]);
+});
+
+test('resetFilters clears every filter and preserves unrelated config', () => {
+  const cfg: JsonConfig = {
+    chatId: 123456789,
+    telegram: {
+      channels: ['@deals'],
+      sessionPath: './data/telegram.session',
+    },
+    openRouter: {
+      model: 'google/gemini-2.5-flash-lite',
+      timeoutMs: 15000,
+      maxRetries: 3,
+      maxInputChars: 4000,
+      maxCostUsd: 1,
+    },
+    filters: {
+      maxPrice: 70000,
+      departureCities: ['Москва'],
+      arrivalCities: ['Стамбул'],
+      minNights: 5,
+      maxNights: 12,
+      dateFrom: '2026-04-01',
+      dateTo: '2026-05-01',
+    },
+  };
+  const unrelatedConfig = {
+    chatId: cfg.chatId,
+    telegram: structuredClone(cfg.telegram),
+    openRouter: structuredClone(cfg.openRouter),
+  };
+
+  resetFilters(cfg);
+  resetFilters(cfg);
+
+  assert.deepEqual(cfg.filters, {
+    departureCities: [],
+    arrivalCities: [],
+  });
+  assert.deepEqual(
+    { chatId: cfg.chatId, telegram: cfg.telegram, openRouter: cfg.openRouter },
+    unrelatedConfig,
+  );
 });
 
 test('formatStatusText renders human-readable runtime and config status', () => {

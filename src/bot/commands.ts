@@ -12,6 +12,7 @@ export const BOT_COMMANDS = [
   { command: 'help', description: 'Список команд' },
   { command: 'status', description: 'Текущее состояние и настройки' },
   { command: 'filters', description: 'Показать фильтры' },
+  { command: 'resetfilters', description: 'Сбросить все фильтры' },
   { command: 'setprice', description: 'Установить максимум цены' },
   { command: 'nights', description: 'Ночи: min max, одно число, или off' },
   { command: 'dates', description: 'Установить диапазон дат' },
@@ -96,6 +97,7 @@ const HELP_TEXT = `<b>Доступные команды:</b>
 /help — список команд
 /status — статус бота
 /filters — текущие фильтры
+/resetfilters — сбросить все фильтры
 /setprice 50000 — установить макс. цену
 /nights 5 12 — от 5 до 12 ночей; /nights 7 — ровно 7; /nights off — без ограничения
 /dates 2026-03-01 2026-09-01 — диапазон дат
@@ -149,6 +151,13 @@ export const runReloadCommand = async (reloadRuntime: ReloadRuntime): Promise<st
   }
 };
 
+export const resetFilters = (config: JsonConfig): void => {
+  config.filters = {
+    departureCities: [],
+    arrivalCities: [],
+  };
+};
+
 export const setupCommands = (
   getStatus: () => RuntimeStatus,
   reloadRuntime: ReloadRuntime
@@ -178,6 +187,11 @@ export const setupCommands = (
       `Даты: ${f.dateFrom ?? '—'} — ${f.dateTo ?? '—'}`,
     ];
     await sendMessage(chatId, lines.join('\n'));
+  });
+
+  bot.command('resetfilters', async (ctx) => {
+    updateJsonConfig(resetFilters);
+    await sendMessage(ctx.chat.id, '✅ Все фильтры сброшены. Поиск туров остановлен.');
   });
 
   bot.command('setprice', async (ctx) => {

@@ -1,7 +1,7 @@
 import { createLogger } from '../logging/logger';
 import { getJsonConfig } from '../config';
 import { TourDatabase } from '../db';
-import { matchesFilters } from '../filters/tourFilters';
+import { hasActiveFilters, matchesFilters } from '../filters/tourFilters';
 import { TelegramNotifier } from '../notifier/telegramNotifier';
 import { parseTours } from '../parser';
 import { RawMessageContext } from '../types/tour';
@@ -15,12 +15,23 @@ export class TourService {
   ) {}
 
   public async processMessage(message: RawMessageContext): Promise<void> {
+    if (!hasActiveFilters(getJsonConfig().filters)) {
+      logger.debug('Tour search skipped because no filters are configured');
+      return;
+    }
+
     try {
       const tours = await parseTours(message.text);
 
       for (let offerIndex = 0; offerIndex < tours.length; offerIndex += 1) {
+        const filters = getJsonConfig().filters;
+        if (!hasActiveFilters(filters)) {
+          logger.debug('Tour search stopped while processing message because filters were cleared');
+          return;
+        }
+
         const parsed = tours[offerIndex];
-        const matched = matchesFilters(parsed, getJsonConfig().filters);
+        const matched = matchesFilters(parsed, filters);
         const tourId = this.db.saveTour(message, parsed, matched, offerIndex);
 
         if (tourId === null) {

@@ -119,6 +119,8 @@ Configured through `data/config.json`:
 
 Bot: `/nights 5 12` (range), `/nights 7` (exactly 7 nights), `/nights off` (clear night limits).
 
+Use `/resetfilters` to clear price, departure and arrival cities, nights, and date restrictions at once. Tour search pauses while no filters are configured and resumes automatically when any filter is added.
+
 Free-form channel posts can still match filters when they contain a usable destination, departure city, and start date, even if the post omits an explicit date range or full package details.
 
 When regex alone is not enough, the LLM returns a **`tours` array**; each offer is merged with regex hints, filtered, and stored/notified **separately** (`offer_index` in SQLite).

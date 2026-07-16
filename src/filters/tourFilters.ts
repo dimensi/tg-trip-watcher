@@ -1,5 +1,14 @@
 import { ParsedTour, TourFilters } from '../types/tour';
 
+export const hasActiveFilters = (filters: TourFilters): boolean =>
+  filters.maxPrice !== undefined ||
+  filters.departureCities.length > 0 ||
+  filters.arrivalCities.length > 0 ||
+  filters.minNights !== undefined ||
+  filters.maxNights !== undefined ||
+  filters.dateFrom !== undefined ||
+  filters.dateTo !== undefined;
+
 const inRange = (value: string, from?: string, to?: string): boolean => {
   if (from && value < from) return false;
   if (to && value > to) return false;

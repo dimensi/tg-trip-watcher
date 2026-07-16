@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { matchesFilters } from './tourFilters';
+import { hasActiveFilters, matchesFilters } from './tourFilters';
 import { ParsedTour, TourFilters } from '../types/tour';
 
 const baseTour: ParsedTour = {
@@ -20,6 +20,24 @@ const baseFilters: TourFilters = {
   dateFrom: '2026-04-01',
   dateTo: '2026-05-01',
 };
+
+test('hasActiveFilters returns false only when every filter is cleared', () => {
+  assert.equal(hasActiveFilters({ departureCities: [], arrivalCities: [] }), false);
+
+  const activeFilters: TourFilters[] = [
+    { departureCities: [], arrivalCities: [], maxPrice: 50000 },
+    { departureCities: ['Москва'], arrivalCities: [] },
+    { departureCities: [], arrivalCities: ['Стамбул'] },
+    { departureCities: [], arrivalCities: [], minNights: 5 },
+    { departureCities: [], arrivalCities: [], maxNights: 12 },
+    { departureCities: [], arrivalCities: [], dateFrom: '2026-04-01' },
+    { departureCities: [], arrivalCities: [], dateTo: '2026-05-01' },
+  ];
+
+  for (const filters of activeFilters) {
+    assert.equal(hasActiveFilters(filters), true);
+  }
+});
 
 const istanbulParsedTour: ParsedTour = {
   destination: 'Стамбул (SAW)',

@@ -82,27 +82,20 @@ Persistent data is stored in Docker volume `tg_watcher_data`:
 - `/app/data/tours.db`
 - `/app/data/telegram.session`
 
-## GitHub Actions deploy (GHCR + VPS)
+## GitHub Actions deploy (GHCR + Coolify)
 - Workflow: `.github/workflows/deploy.yml`
-- Deploy compose: `docker-compose.deploy.yml`
 - On each push to `main`:
-  - image is built from `Dockerfile` and pushed to `ghcr.io/<owner>/<repo>:latest`
-  - VPS pulls latest image and runs `docker compose up -d`
+  - lint and typecheck run before the image build
+  - the image is pushed as `ghcr.io/<owner>/<repo>:latest` and with the full commit SHA tag
+  - deployment remains skipped unless repository variable `COOLIFY_DEPLOY_ENABLED` is exactly `true`
+  - when enabled, Coolify switches the application to the full SHA tag and waits for deployment completion
 
 Required GitHub secrets:
-- `VPS_HOST`
-- `VPS_USER`
-- `VPS_SSH_KEY`
-- `VPS_PORT` (optional; defaults to `22`)
-- `TELEGRAM_API_ID`
-- `TELEGRAM_API_HASH`
-- `BOT_TOKEN`
-- `OPENROUTER_API_KEY`
-- `TELEGRAM_PHONE_NUMBER` (optional)
+- `COOLIFY_URL`
+- `COOLIFY_APP_UUID`
+- `COOLIFY_TOKEN`
 
-Optional GitHub variables:
-- `LOG_LEVEL` (default `info`)
-- `MT_PROXY` (`tg://proxy?server=ip_address&port=443&secret=secret_key`)
+Runtime secrets and configuration belong in Coolify, not GitHub Actions. The previous VPS and its application data were deleted, so there is no session, database, or configuration to import. Keep deployment disabled until a new server and an empty persistent `/app/data` mount are ready. See `docs/coolify-deployment.md` for activation and rollback steps.
 
 ## Telegram login flow
 - For first start, set `TELEGRAM_LOGIN_CODE` in `.env` (code from Telegram SMS/app).

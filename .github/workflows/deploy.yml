@@ -3,6 +3,7 @@ name: Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: deploy-main
@@ -55,7 +56,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest
-            type=sha,prefix=
+            type=sha,prefix=,format=long
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -71,81 +72,56 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-push
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.COOLIFY_DEPLOY_ENABLED == 'true'
     permissions:
       contents: read
-      packages: read
-
+    timeout-minutes: 15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Prepare VPS directories
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          port: ${{ secrets.VPS_PORT || '22' }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -euo pipefail
-            APP_ROOT="/opt/compose/tg-trip-watcher"
-            DATA_ROOT="/data/tg-trip-watcher"
-            mkdir -p "$APP_ROOT" "$DATA_ROOT/data"
-
-      - name: Upload docker compose file
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          port: ${{ secrets.VPS_PORT || '22' }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: docker-compose.deploy.yml
-          target: /opt/compose/tg-trip-watcher
-
-      - name: Deploy on VPS
-        uses: appleboy/ssh-action@v1.2.0
+      - name: Deploy published image through Coolify
         env:
-          IMAGE_NAME: ${{ github.repository }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
-          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          TELEGRAM_PHONE_NUMBER: ${{ secrets.TELEGRAM_PHONE_NUMBER }}
-          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
-          MT_PROXY: ${{ vars.MT_PROXY }}
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          port: ${{ secrets.VPS_PORT || '22' }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          envs: IMAGE_NAME,GITHUB_TOKEN,GITHUB_ACTOR,TELEGRAM_API_ID,TELEGRAM_API_HASH,BOT_TOKEN,OPENROUTER_API_KEY,TELEGRAM_PHONE_NUMBER,LOG_LEVEL,MT_PROXY
-          script: |
-            set -euo pipefail
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
 
-            APP_ROOT="/opt/compose/tg-trip-watcher"
-            cd "$APP_ROOT"
+          base = os.environ["COOLIFY_URL"].rstrip("/") + "/api/v1"
+          application = os.environ["COOLIFY_APP_UUID"]
+          revision = os.environ["DEPLOY_SHA"]
 
-            echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-            docker pull "ghcr.io/${IMAGE_NAME}:latest"
+          def api(method, path, data=None):
+              request = urllib.request.Request(
+                  base + path,
+                  method=method,
+                  data=json.dumps(data).encode() if data is not None else None,
+                  headers={
+                      "Authorization": "Bearer " + os.environ["COOLIFY_TOKEN"],
+                      "Content-Type": "application/json",
+                      "Accept": "application/json",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=60) as response:
+                      return json.load(response)
+              except urllib.error.HTTPError as error:
+                  raise RuntimeError(f"Coolify request failed with HTTP {error.code}") from None
 
-            cat > .env <<EOF
-            IMAGE_NAME=${IMAGE_NAME}
-            TELEGRAM_API_ID=${TELEGRAM_API_ID}
-            TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
-            BOT_TOKEN=${BOT_TOKEN}
-            OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-            TELEGRAM_PHONE_NUMBER=${TELEGRAM_PHONE_NUMBER:-}
-            SQLITE_PATH=/app/data/tours.db
-            CONFIG_PATH=/app/data/config.json
-            LOG_LEVEL=${LOG_LEVEL:-info}
-            MT_PROXY=${MT_PROXY:-}
-            EOF
-            chmod 600 .env
-
-            cp docker-compose.deploy.yml docker-compose.yml
-            docker compose down --remove-orphans || true
-            docker compose up -d
-            docker image prune -f
+          api("PATCH", "/applications/" + application, {"docker_registry_image_tag": revision})
+          deployment = api("POST", "/deploy", {"uuid": application})["deployments"][0]["deployment_uuid"]
+          for attempt in range(120):
+              status = api("GET", "/deployments/" + deployment)["status"]
+              if status == "finished":
+                  print("Coolify deployed revision " + revision)
+                  break
+              if status in {"failed", "cancelled", "cancelled-by-user"}:
+                  raise RuntimeError("Coolify deployment " + status)
+              time.sleep(5)
+          else:
+              raise RuntimeError("Timed out waiting for Coolify deployment")
+          PY
